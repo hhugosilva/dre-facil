@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "DRE.mensal",
+    "slug": "dre-facil",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#08090b"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.drex.drefacil"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#08090b"
+      },
+      "package": "com.drex.drefacil"
+    },
+    "plugins": [
+      "expo-document-picker"
+    ],
+    "scheme": "drefacil",
+    "extra": {
+      "eas": {
+        "projectId": "4a97d5b7-af53-4a39-b5b7-0f8c519c1fb8"
+      }
+    }
+  }
+}
