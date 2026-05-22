@@ -21,6 +21,7 @@ export const registerApi      = (nome: string, email: string, senha: string, nom
 export const meApi            = () => api.get('/api/auth/me');
 export const updateProfileApi = (data: { nome: string; nome_empresa?: string; cnpj?: string; senha_atual?: string; nova_senha?: string }) =>
   api.put('/api/auth/profile', data);
+export const deleteAccountApi = () => api.delete('/api/auth/account');
 export const googleAuthApi    = (accessToken: string) => api.post('/api/auth/google', { accessToken });
 
 // Histórico
@@ -37,5 +38,27 @@ export const saveConfigApi = (data: any) => api.put('/api/config', data);
 export const classifyApi = (transactions: any[], rules: any[], fornConfig: any[]) =>
   api.post('/api/ai/classify', { transactions, rules, fornConfig });
 
+export const forgotPasswordApi = (email: string) =>
+  api.post('/api/auth/forgot-password', { email });
+
+export const resendVerifyEmailApi = (email: string) =>
+  api.post('/api/auth/resend-verify-email', { email });
+
+export const sendRegisterCodeApi = (nome: string, email: string, senha: string, nome_empresa?: string) =>
+  api.post('/api/auth/send-register-code', { nome, email, senha, nome_empresa });
+
+export const confirmRegisterCodeApi = (email: string, code: string) =>
+  api.post('/api/auth/confirm-register-code', { email, code });
+
+export const resendRegisterCodeApi = (email: string) =>
+  api.post('/api/auth/resend-register-code', { email });
+
 export const parseExtractApi = (lines: string[], bankHint?: string) =>
   api.post('/api/ai/parse-extract', { lines, bankHint });
+
+export const parsePDFApi = (base64: string, bankHint?: string) =>
+  api.post('/api/ai/parse-pdf', { base64, bankHint }, { timeout: 60000 });
+
+// 2FA
+export const toggle2FAApi = (enabled: boolean) => api.put('/api/auth/toggle-2fa', { enabled });
+export const verify2FAApi = (userId: number, code: string) => api.post('/api/auth/verify-2fa', { userId, code });

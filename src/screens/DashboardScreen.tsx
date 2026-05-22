@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Alert, RefreshControl, Modal, Dimensions,
@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle, Text as SvgText, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useApp, HistEntry } from '../context/AppContext';
 import { fmtBRL, mesLabel, mesLabelFull } from '../utils/format';
@@ -18,12 +18,13 @@ const MONTH_LABELS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out
 
 // ─── Gráfico de área/linha ────────────────────────────────────────────────────
 function MonthlyChart({
-  actual, projected, width, height,
+  actual, projected, width, height, colors,
 }: {
   actual: number[];     // 12 posições, NaN = sem dado
   projected: number[];  // 12 posições, NaN = sem projeção
   width: number;
   height: number;
+  colors: any;
 }) {
   const PL = 40, PR = 10, PT = 14, PB = 26;
   const cW = width - PL - PR;
@@ -124,6 +125,7 @@ function MonthlyChart({
 
 // ─── Tela principal ───────────────────────────────────────────────────────────
 export default function DashboardScreen({ navigation }: any) {
+  const { colors } = useTheme();
   const { user, logout } = useAuth();
   const { hist, loadData } = useApp();
   const [loading, setLoading]       = useState(true);
@@ -131,15 +133,67 @@ export default function DashboardScreen({ navigation }: any) {
   const [detail, setDetail]         = useState<HistEntry | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [prevYear, setPrevYear]     = useState<PrevYearData | null>(null);
+  const [hideValues, setHideValues] = useState(false);
+
+  const mask = (v: number) => hideValues ? '••••' : fmtBRL(v);
+  const maskPct = (v: number) => hideValues ? '—' : `${v.toFixed(1)}%`;
+
+  const s = useMemo(() => StyleSheet.create({
+    root:          { flex: 1, backgroundColor: colors.bg },
+    topbar:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 56, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
+    brand:         { fontSize: 16, fontWeight: '700', color: colors.t1, letterSpacing: 0.05 },
+    scroll:        { padding: 16, paddingBottom: 40 },
+    dashHeader:    { marginBottom: 16 },
+    dashGreeting:  { fontSize: 24, fontWeight: '700', color: colors.t1 },
+    dashEmpresa:   { fontSize: 13, color: colors.green, marginTop: 2, fontWeight: '500' },
+    dashSub:       { fontSize: 13, color: colors.t2, marginTop: 4 },
+    kpiGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
+    kpiCard:       { flex: 1, minWidth: '45%', backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1 },
+    kpiLabel:      { fontSize: 10, color: colors.t3, letterSpacing: 0.07, textTransform: 'uppercase', marginBottom: 6 },
+    kpiVal:        { fontSize: 17, fontWeight: '600', lineHeight: 22 },
+    kpiSub:        { fontSize: 10, color: colors.t3, marginTop: 4 },
+    chartCard:     { backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1, marginBottom: 14 },
+    chartHeader:   { marginBottom: 8 },
+    sectionTitle:  { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.1, textTransform: 'uppercase' },
+    chartLegend:   { flexDirection: 'row', gap: 16, marginTop: 10 },
+    legendItem:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    legendDot:     { width: 8, height: 8, borderRadius: 4 },
+    legendDash:    { width: 16, height: 2, backgroundColor: colors.t2, borderRadius: 1 },
+    legendText:    { fontSize: 10, color: colors.t2 },
+    novaDreBtn:    { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.s1, borderRadius: colors.r, padding: 16, borderWidth: 1, borderColor: `${colors.green}40`, marginBottom: 14 },
+    novaDreIcon:   { width: 44, height: 44, borderRadius: 10, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center' },
+    novaDreTitle:  { fontSize: 15, fontWeight: '600', color: colors.t1 },
+    novaDreSub:    { fontSize: 12, color: colors.t2, marginTop: 2 },
+    listTitle:     { fontSize: 13, fontWeight: '600', color: colors.t1, marginBottom: 10 },
+    mesCard:       { backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    mesLeft:       {},
+    mesMes:        { fontSize: 11, color: colors.t3, marginBottom: 3 },
+    mesLucro:      { fontSize: 18, fontWeight: '600' },
+    mesMargem:     { fontSize: 10, color: colors.t3, marginTop: 3 },
+    mesRight:      { alignItems: 'flex-end' },
+    mesRec:        { fontSize: 11, color: colors.green },
+    mesCst:        { fontSize: 11, color: colors.red, marginTop: 3 },
+    modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalSheet:    { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+    modalHandle:   { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 14 },
+    modalTitle:    { fontSize: 16, fontWeight: '600', color: colors.t1, marginBottom: 14 },
+    detailGrid:    { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    detailCard:    { flex: 1, backgroundColor: colors.s2, borderRadius: colors.rs, padding: 10 },
+    detailLabel:   { fontSize: 9, color: colors.t3, textTransform: 'uppercase', letterSpacing: 0.06, marginBottom: 4 },
+    detailVal:     { fontSize: 15, fontWeight: '600' },
+    detailRow:     { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: colors.b1 },
+    detailRowLabel:{ fontSize: 12, color: colors.t2 },
+    detailRowVal:  { fontSize: 12, color: colors.red },
+  }), [colors]);
 
   useFocusEffect(useCallback(() => {
     setLoading(true);
-    Promise.all([loadData(), getPrevYear().then(setPrevYear)]).finally(() => setLoading(false));
+    Promise.all([loadData(), getPrevYear(user!.id).then(setPrevYear)]).finally(() => setLoading(false));
   }, []));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), getPrevYear().then(setPrevYear)]);
+    await Promise.all([loadData(), getPrevYear(user!.id).then(setPrevYear)]);
     setRefreshing(false);
   };
 
@@ -207,13 +261,18 @@ export default function DashboardScreen({ navigation }: any) {
     <View style={s.root}>
       {/* Topbar */}
       <View style={s.topbar}>
-        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>.</Text>mensal</Text>
-        <TouchableOpacity onPress={() => Alert.alert('Sair', 'Deseja sair?', [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Sair', style: 'destructive', onPress: logout },
-        ])}>
-          <Ionicons name="log-out-outline" size={22} color={colors.t3} />
-        </TouchableOpacity>
+        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>Fácil</Text></Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+          <TouchableOpacity onPress={() => setHideValues(v => !v)}>
+            <Ionicons name={hideValues ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.t3} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert('Sair', 'Deseja sair?', [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Sair', style: 'destructive', onPress: logout },
+          ])}>
+            <Ionicons name="log-out-outline" size={22} color={colors.t3} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -241,19 +300,19 @@ export default function DashboardScreen({ navigation }: any) {
           <View style={s.kpiGrid}>
             <View style={s.kpiCard}>
               <Text style={s.kpiLabel}>Faturamento</Text>
-              <Text style={[s.kpiVal, { color: colors.green }]}>{fmtBRL(totalReceita)}</Text>
+              <Text style={[s.kpiVal, { color: colors.green }]}>{mask(totalReceita)}</Text>
             </View>
             <View style={s.kpiCard}>
               <Text style={s.kpiLabel}>Lucro</Text>
-              <Text style={[s.kpiVal, { color: totalLucro >= 0 ? colors.green : colors.red }]}>{fmtBRL(totalLucro)}</Text>
+              <Text style={[s.kpiVal, { color: totalLucro >= 0 ? colors.green : colors.red }]}>{mask(totalLucro)}</Text>
             </View>
             <View style={s.kpiCard}>
               <Text style={s.kpiLabel}>Custo</Text>
-              <Text style={[s.kpiVal, { color: colors.red }]}>{fmtBRL(totalCusto)}</Text>
+              <Text style={[s.kpiVal, { color: colors.red }]}>{mask(totalCusto)}</Text>
             </View>
             <View style={s.kpiCard}>
               <Text style={s.kpiLabel}>Melhor mês</Text>
-              <Text style={[s.kpiVal, { color: colors.green, fontSize: 14 }]}>{melhor ? fmtBRL(melhor.lucro) : '—'}</Text>
+              <Text style={[s.kpiVal, { color: colors.green, fontSize: 14 }]}>{melhor ? mask(melhor.lucro) : '—'}</Text>
               {melhor && <Text style={s.kpiSub}>{melhor.mes_key}</Text>}
             </View>
           </View>
@@ -269,6 +328,7 @@ export default function DashboardScreen({ navigation }: any) {
                 projected={projectedData}
                 width={W - 64}
                 height={180}
+                colors={colors}
               />
               <View style={s.chartLegend}>
                 <View style={s.legendItem}>
@@ -296,13 +356,13 @@ export default function DashboardScreen({ navigation }: any) {
                     <View style={s.mesLeft}>
                       <Text style={s.mesMes}>{mesLabelFull(h.mes_key)}</Text>
                       <Text style={[s.mesLucro, { color: h.lucro >= 0 ? colors.green : colors.red }]}>
-                        {h.lucro >= 0 ? '+' : ''}{fmtBRL(h.lucro)}
+                        {hideValues ? '••••' : `${h.lucro >= 0 ? '+' : ''}${fmtBRL(h.lucro)}`}
                       </Text>
-                      <Text style={s.mesMargem}>margem {margin.toFixed(1)}%</Text>
+                      <Text style={s.mesMargem}>margem {maskPct(margin)}</Text>
                     </View>
                     <View style={s.mesRight}>
-                      <Text style={s.mesRec}>↑ {fmtBRL(h.receita)}</Text>
-                      <Text style={s.mesCst}>↓ {fmtBRL(h.total_custo)}</Text>
+                      <Text style={s.mesRec}>↑ {mask(h.receita)}</Text>
+                      <Text style={s.mesCst}>↓ {mask(h.total_custo)}</Text>
                       <TouchableOpacity onPress={() => handleDelete(h.mes_key)} style={{ marginTop: 6 }}>
                         <Ionicons name="trash-outline" size={16} color={colors.t3} />
                       </TouchableOpacity>
@@ -327,9 +387,9 @@ export default function DashboardScreen({ navigation }: any) {
                 <Text style={s.modalTitle}>DRE — {detail.mes_key}</Text>
                 <View style={s.detailGrid}>
                   {([
-                    ['Faturamento', fmtBRL(detail.receita), colors.green],
-                    ['Custos', fmtBRL(detail.total_custo), colors.red],
-                    ['Lucro', fmtBRL(detail.lucro), detail.lucro >= 0 ? colors.green : colors.red],
+                    ['Faturamento', mask(detail.receita), colors.green],
+                    ['Custos', mask(detail.total_custo), colors.red],
+                    ['Lucro', mask(detail.lucro), detail.lucro >= 0 ? colors.green : colors.red],
                   ] as [string, string, string][]).map(([lbl, val, clr]) => (
                     <View key={lbl} style={s.detailCard}>
                       <Text style={s.detailLabel}>{lbl}</Text>
@@ -342,7 +402,7 @@ export default function DashboardScreen({ navigation }: any) {
                   .map(([cat, val]) => (
                     <View key={cat} style={s.detailRow}>
                       <Text style={s.detailRowLabel}>{cat}</Text>
-                      <Text style={s.detailRowVal}>{fmtBRL(val as number)}</Text>
+                      <Text style={s.detailRowVal}>{mask(val as number)}</Text>
                     </View>
                   ))}
               </>
@@ -354,50 +414,3 @@ export default function DashboardScreen({ navigation }: any) {
   );
 }
 
-const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: colors.bg },
-  topbar:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 56, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
-  brand:         { fontSize: 16, fontWeight: '700', color: colors.t1, letterSpacing: 0.05 },
-  scroll:        { padding: 16, paddingBottom: 40 },
-  dashHeader:    { marginBottom: 16 },
-  dashGreeting:  { fontSize: 24, fontWeight: '700', color: colors.t1 },
-  dashEmpresa:   { fontSize: 13, color: colors.green, marginTop: 2, fontWeight: '500' },
-  dashSub:       { fontSize: 13, color: colors.t2, marginTop: 4 },
-  kpiGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
-  kpiCard:       { flex: 1, minWidth: '45%', backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1 },
-  kpiLabel:      { fontSize: 10, color: colors.t3, letterSpacing: 0.07, textTransform: 'uppercase', marginBottom: 6 },
-  kpiVal:        { fontSize: 17, fontWeight: '600', lineHeight: 22 },
-  kpiSub:        { fontSize: 10, color: colors.t3, marginTop: 4 },
-  chartCard:     { backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1, marginBottom: 14 },
-  chartHeader:   { marginBottom: 8 },
-  sectionTitle:  { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.1, textTransform: 'uppercase' },
-  chartLegend:   { flexDirection: 'row', gap: 16, marginTop: 10 },
-  legendItem:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot:     { width: 8, height: 8, borderRadius: 4 },
-  legendDash:    { width: 16, height: 2, backgroundColor: colors.t2, borderRadius: 1 },
-  legendText:    { fontSize: 10, color: colors.t2 },
-  novaDreBtn:    { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.s1, borderRadius: colors.r, padding: 16, borderWidth: 1, borderColor: `${colors.green}40`, marginBottom: 14 },
-  novaDreIcon:   { width: 44, height: 44, borderRadius: 10, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center' },
-  novaDreTitle:  { fontSize: 15, fontWeight: '600', color: colors.t1 },
-  novaDreSub:    { fontSize: 12, color: colors.t2, marginTop: 2 },
-  listTitle:     { fontSize: 13, fontWeight: '600', color: colors.t1, marginBottom: 10 },
-  mesCard:       { backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  mesLeft:       {},
-  mesMes:        { fontSize: 11, color: colors.t3, marginBottom: 3 },
-  mesLucro:      { fontSize: 18, fontWeight: '600' },
-  mesMargem:     { fontSize: 10, color: colors.t3, marginTop: 3 },
-  mesRight:      { alignItems: 'flex-end' },
-  mesRec:        { fontSize: 11, color: colors.green },
-  mesCst:        { fontSize: 11, color: colors.red, marginTop: 3 },
-  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet:    { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  modalHandle:   { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 14 },
-  modalTitle:    { fontSize: 16, fontWeight: '600', color: colors.t1, marginBottom: 14 },
-  detailGrid:    { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  detailCard:    { flex: 1, backgroundColor: colors.s2, borderRadius: colors.rs, padding: 10 },
-  detailLabel:   { fontSize: 9, color: colors.t3, textTransform: 'uppercase', letterSpacing: 0.06, marginBottom: 4 },
-  detailVal:     { fontSize: 15, fontWeight: '600' },
-  detailRow:     { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: colors.b1 },
-  detailRowLabel:{ fontSize: 12, color: colors.t2 },
-  detailRowVal:  { fontSize: 12, color: colors.red },
-});

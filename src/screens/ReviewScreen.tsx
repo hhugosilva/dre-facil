@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  Modal, TextInput, ScrollView, Switch,
+  Modal, TextInput, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import { useApp, AllTx } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { fmtBRL } from '../utils/format';
 import { getMemory, saveMemory, memKey } from '../utils/storage';
 
@@ -14,7 +15,7 @@ const BANK_COLORS: Record<string, string> = {
   'Itaú': '#EC7000', 'Bradesco': '#CC092F', 'Santander': '#EC0000',
   'C6 Bank': '#888', 'Sicoob': '#007A3D',
 };
-function bankColor(src: string) { return BANK_COLORS[src] || colors.amber; }
+function bankColor(src: string, clrs: any) { return BANK_COLORS[src] || clrs.amber; }
 function sourceLabel(src: string) {
   if (!src || src === 'Auto-detectar' || src === 'auto') return 'Extrato';
   return src;
@@ -23,6 +24,8 @@ function sourceLabel(src: string) {
 type SortOrder = 'newest' | 'oldest' | 'highest' | 'lowest';
 
 export default function ReviewScreen({ navigation, route }: any) {
+  const { colors } = useTheme();
+  const { user } = useAuth();
   const { mesKey } = route.params;
   const { allTx, setAllTx, cats } = useApp();
   const [filterSource, setFilterSource] = useState('todos');
@@ -33,6 +36,65 @@ export default function ReviewScreen({ navigation, route }: any) {
   const [filterModal, setFilterModal] = useState(false);
 
   const allCats = cats.map(c => c.name);
+
+  const s = useMemo(() => StyleSheet.create({
+    root:           { flex: 1, backgroundColor: colors.bg },
+    topbar:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
+    brand:          { fontSize: 15, fontWeight: '700', color: colors.t1 },
+    pills:          { flexDirection: 'row', gap: 6 },
+    pill:           { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
+    pillActive:     { borderColor: colors.green },
+    pillText:       { fontSize: 12, color: colors.t3 },
+    pillTextActive: { color: colors.green, fontWeight: '600' },
+    header:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
+    pageTitle:      { fontSize: 24, fontWeight: '700', color: colors.t1 },
+    pageSub:        { fontSize: 12, color: colors.t3, marginTop: 2 },
+    verDREBtn:      { borderWidth: 1, borderColor: colors.green, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+    verDREText:     { color: colors.green, fontSize: 13, fontWeight: '600' },
+    searchRow:      { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.s1, borderRadius: colors.rs, marginHorizontal: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.b1 },
+    searchInput:    { flex: 1, padding: 10, fontSize: 13, color: colors.t1 },
+    filterBar:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 8 },
+    filterBtn:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.s1, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
+    filterBtnActive:{ borderColor: colors.green },
+    filterBtnText:  { fontSize: 13, color: colors.t2 },
+    activeChip:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: `${colors.green}22`, borderRadius: 20, borderWidth: 1, borderColor: `${colors.green}60`, marginRight: 6 },
+    activeChipText: { fontSize: 12, color: colors.green },
+    dotXs:          { width: 7, height: 7, borderRadius: 4 },
+    card:           { backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1 },
+    cardExcluded:   { opacity: 0.4 },
+    cardTop:        { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+    sourceBadge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 0.5, marginRight: 8 },
+    sourceText:     { fontSize: 10, fontWeight: '700' },
+    cardDate:       { fontSize: 11, color: colors.t3, flex: 1 },
+    cardVal:        { fontSize: 15, fontWeight: '700' },
+    cardDesc:       { fontSize: 14, color: colors.t1, lineHeight: 20, marginBottom: 10 },
+    cardBottom:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    catChip:        { borderLeftWidth: 3, paddingLeft: 8, paddingVertical: 2, flex: 1 },
+    catChipText:    { fontSize: 13 },
+    empRow:         { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    empLabel:       { fontSize: 11, color: colors.t3 },
+    footer:         { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, paddingBottom: 32, backgroundColor: colors.bg, borderTopWidth: 0.5, borderTopColor: colors.b1 },
+    footerSummary:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    footerVal:      { fontSize: 13, fontWeight: '700' },
+    footerSep:      { color: colors.t3 },
+    nextBtn:        { backgroundColor: colors.green, borderRadius: colors.r, paddingHorizontal: 20, paddingVertical: 12 },
+    nextBtnText:    { fontSize: 14, fontWeight: '700', color: '#0a1a0e' },
+    modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalSheet:     { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+    modalHandle:    { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 12 },
+    modalTitle:     { fontSize: 15, fontWeight: '700', color: colors.t1, marginBottom: 4 },
+    modalSub:       { fontSize: 13, color: colors.t2, marginBottom: 12 },
+    catOpt:         { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.s2, borderRadius: colors.rs, padding: 12, borderWidth: 0.5, borderColor: colors.b2 },
+    catDot:         { width: 10, height: 10, borderRadius: 5 },
+    catOptText:     { fontSize: 14, color: colors.t1, flex: 1 },
+    fSection:       { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8, marginTop: 8 },
+    fChip:          { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.s2, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
+    fChipActive:    { borderColor: colors.green, backgroundColor: `${colors.green}22` },
+    fChipText:      { fontSize: 13, color: colors.t2 },
+    fGrid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+    applyBtn:       { backgroundColor: colors.green, borderRadius: colors.r, padding: 14, alignItems: 'center', marginTop: 16 },
+    applyBtnText:   { fontSize: 14, fontWeight: '700', color: '#0a1a0e' },
+  }), [colors]);
 
   const sources = useMemo(() =>
     [...new Set(allTx.map(t => t.source).filter(Boolean))],
@@ -87,8 +149,8 @@ export default function ReviewScreen({ navigation, route }: any) {
 
   const changeCategoria = async (tx: AllTx, cat: string) => {
     setAllTx(allTx.map(t => t.id === tx.id ? { ...t, categoria: cat } : t));
-    const mem = await getMemory();
-    await saveMemory({ ...mem, [memKey(tx.descricao)]: cat });
+    const mem = await getMemory(user!.id);
+    await saveMemory(user!.id, { ...mem, [memKey(tx.descricao)]: cat });
     setCatModal(null);
   };
 
@@ -105,7 +167,7 @@ export default function ReviewScreen({ navigation, route }: any) {
     const isOut = item.valor < 0;
     const excluded = !item.empresa || item.isTransfer;
     const srcLabel = sourceLabel(item.source);
-    const srcColor = bankColor(item.source);
+    const srcColor = bankColor(item.source, colors);
 
     return (
       <TouchableOpacity
@@ -133,17 +195,6 @@ export default function ReviewScreen({ navigation, route }: any) {
               {item.isTransfer ? 'Transferência' : item.categoria}
             </Text>
           </View>
-          <View style={s.empRow}>
-            <Text style={s.empLabel}>emp</Text>
-            <Switch
-              value={item.empresa && !item.isTransfer}
-              onValueChange={() => { if (!item.isTransfer) toggleEmpresa(item); }}
-              trackColor={{ false: colors.s3, true: `${colors.green}60` }}
-              thumbColor={item.empresa && !item.isTransfer ? colors.green : colors.t3}
-              ios_backgroundColor={colors.s3}
-              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-            />
-          </View>
         </View>
       </TouchableOpacity>
     );
@@ -158,7 +209,7 @@ export default function ReviewScreen({ navigation, route }: any) {
     <View style={s.root}>
       {/* Topbar */}
       <View style={s.topbar}>
-        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>.</Text>mensal</Text>
+        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>Fácil</Text></Text>
         <View style={s.pills}>
           {['extratos', 'revisar', 'resultado'].map((lbl, i) => (
             <View key={lbl} style={[s.pill, i === 1 && s.pillActive]}>
@@ -305,7 +356,7 @@ export default function ReviewScreen({ navigation, route }: any) {
                 {(['todos', ...sources, 'não classif.', 'transferências'] as string[]).map(src => {
                   const active = filterSource === src;
                   const isBank = src !== 'todos' && src !== 'não classif.' && src !== 'transferências';
-                  const bc = isBank ? bankColor(src) : colors.t3;
+                  const bc = isBank ? bankColor(src, colors) : colors.t3;
                   return (
                     <TouchableOpacity
                       key={src}
@@ -376,61 +427,3 @@ export default function ReviewScreen({ navigation, route }: any) {
   );
 }
 
-const s = StyleSheet.create({
-  root:           { flex: 1, backgroundColor: colors.bg },
-  topbar:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
-  brand:          { fontSize: 15, fontWeight: '700', color: colors.t1 },
-  pills:          { flexDirection: 'row', gap: 6 },
-  pill:           { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
-  pillActive:     { borderColor: colors.green },
-  pillText:       { fontSize: 12, color: colors.t3 },
-  pillTextActive: { color: colors.green, fontWeight: '600' },
-  header:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
-  pageTitle:      { fontSize: 24, fontWeight: '700', color: colors.t1 },
-  pageSub:        { fontSize: 12, color: colors.t3, marginTop: 2 },
-  verDREBtn:      { borderWidth: 1, borderColor: colors.green, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  verDREText:     { color: colors.green, fontSize: 13, fontWeight: '600' },
-  searchRow:      { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.s1, borderRadius: colors.rs, marginHorizontal: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.b1 },
-  searchInput:    { flex: 1, padding: 10, fontSize: 13, color: colors.t1 },
-  filterBar:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 8 },
-  filterBtn:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.s1, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
-  filterBtnActive:{ borderColor: colors.green },
-  filterBtnText:  { fontSize: 13, color: colors.t2 },
-  activeChip:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: `${colors.green}22`, borderRadius: 20, borderWidth: 1, borderColor: `${colors.green}60`, marginRight: 6 },
-  activeChipText: { fontSize: 12, color: colors.green },
-  dotXs:          { width: 7, height: 7, borderRadius: 4 },
-  card:           { backgroundColor: colors.s1, borderRadius: colors.r, padding: 14, borderWidth: 0.5, borderColor: colors.b1 },
-  cardExcluded:   { opacity: 0.4 },
-  cardTop:        { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  sourceBadge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 0.5, marginRight: 8 },
-  sourceText:     { fontSize: 10, fontWeight: '700' },
-  cardDate:       { fontSize: 11, color: colors.t3, flex: 1 },
-  cardVal:        { fontSize: 15, fontWeight: '700' },
-  cardDesc:       { fontSize: 14, color: colors.t1, lineHeight: 20, marginBottom: 10 },
-  cardBottom:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  catChip:        { borderLeftWidth: 3, paddingLeft: 8, paddingVertical: 2, flex: 1 },
-  catChipText:    { fontSize: 13 },
-  empRow:         { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  empLabel:       { fontSize: 11, color: colors.t3 },
-  footer:         { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, paddingBottom: 32, backgroundColor: colors.bg, borderTopWidth: 0.5, borderTopColor: colors.b1 },
-  footerSummary:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  footerVal:      { fontSize: 13, fontWeight: '700' },
-  footerSep:      { color: colors.t3 },
-  nextBtn:        { backgroundColor: colors.green, borderRadius: colors.r, paddingHorizontal: 20, paddingVertical: 12 },
-  nextBtnText:    { fontSize: 14, fontWeight: '700', color: '#0a1a0e' },
-  modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet:     { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  modalHandle:    { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 12 },
-  modalTitle:     { fontSize: 15, fontWeight: '700', color: colors.t1, marginBottom: 4 },
-  modalSub:       { fontSize: 13, color: colors.t2, marginBottom: 12 },
-  catOpt:         { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.s2, borderRadius: colors.rs, padding: 12, borderWidth: 0.5, borderColor: colors.b2 },
-  catDot:         { width: 10, height: 10, borderRadius: 5 },
-  catOptText:     { fontSize: 14, color: colors.t1, flex: 1 },
-  fSection:       { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 8, marginTop: 8 },
-  fChip:          { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.s2, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
-  fChipActive:    { borderColor: colors.green, backgroundColor: `${colors.green}22` },
-  fChipText:      { fontSize: 13, color: colors.t2 },
-  fGrid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  applyBtn:       { backgroundColor: colors.green, borderRadius: colors.r, padding: 14, alignItems: 'center', marginTop: 16 },
-  applyBtnText:   { fontSize: 14, fontWeight: '700', color: '#0a1a0e' },
-});

@@ -1,7 +1,13 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { read as xlsxRead, utils as xlsxUtils } from 'xlsx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { parseExtractApi } from '../services/api';
+import { parseExtractApi, parsePDFApi } from '../services/api';
+
+async function ensureReadable(uri: string, ext: string): Promise<string> {
+  const dest = `${FileSystem.cacheDirectory}dre_${Date.now()}.${ext}`;
+  await FileSystem.copyAsync({ from: uri, to: dest });
+  return dest;
+}
 
 export type Transaction = {
   data: string;
@@ -249,6 +255,8 @@ function detectBankFromText(text: string): string {
   if (t.includes('itau') || t.includes('itaú') || t.includes('lançamento') && t.includes('ag.')) return 'itau';
   if (t.includes('bradesco')) return 'bradesco';
   if (t.includes('santander')) return 'santander';
+  if (t.includes('caixa economica') || t.includes('caixa econômica') || t.includes('cef') || (t.includes('caixa') && (t.includes('extrato') || t.includes('operacao')))) return 'caixa';
+  if (t.includes('banco do brasil') || t.includes('bb.com.br')) return 'bb';
   if (t.includes('c6bank') || (t.includes('c6') && t.includes('saldo'))) return 'c6';
   if (t.includes('sicoob')) return 'sicoob';
   return 'auto';
@@ -257,25 +265,38 @@ function detectBankFromText(text: string): string {
 export async function detectBank(uri: string, name: string): Promise<string> {
   const lower = name.toLowerCase();
   try {
+    const ext = lower.split('.').pop() || 'csv';
+    const readableUri = await ensureReadable(uri, ext);
+    if (lower.endsWith('.pdf')) return 'auto';
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
-      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const b64 = await FileSystem.readAsStringAsync(readableUri, { encoding: FileSystem.EncodingType.Base64 });
       const wb = xlsxRead(b64, { type: 'base64', raw: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[][] = xlsxUtils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
       const headerText = rows.slice(0, 10).map((r: any[]) => r.join(' ')).join(' ');
       return detectBankFromText(headerText);
     } else {
-      const text = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+      const text = await FileSystem.readAsStringAsync(readableUri, { encoding: FileSystem.EncodingType.UTF8 });
       return detectBankFromText(text.slice(0, 2000));
     }
   } catch { return 'auto'; }
 }
 
+// ─── Parse PDF (via backend) ──────────────────────────────────────────────────
+async function parsePDF(uri: string, bankId: string): Promise<Transaction[]> {
+  const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  const { data } = await parsePDFApi(b64, bankId);
+  return (data.transactions || []).filter((t: any) => t.descricao && t.valor !== 0);
+}
+
 // ─── Entrada principal ────────────────────────────────────────────────────────
 export async function parseFile(uri: string, name: string, bankId: string): Promise<Transaction[]> {
   const lower = name.toLowerCase();
-  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return parseXLSX(uri, bankId);
-  return parseCSV(uri, bankId);
+  const ext = lower.split('.').pop() || 'csv';
+  const readableUri = await ensureReadable(uri, ext);
+  if (lower.endsWith('.pdf')) return parsePDF(readableUri, bankId);
+  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return parseXLSX(readableUri, bankId);
+  return parseCSV(readableUri, bankId);
 }
 
 // ─── Detectar transferências entre contas ────────────────────────────────────

@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Alert, Modal, ActivityIndicator,
+  KeyboardAvoidingView, Platform, Keyboard, Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, DEFAULT_CATS, Category } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import { DEFAULT_CATS, Category } from '../theme';
 import { useAuth } from '../context/AuthContext';
 import { useApp, Rule, Forn } from '../context/AppContext';
 import { fmtBRL } from '../utils/format';
 import { getPrevYear, savePrevYear, PrevYearData, PrevYearEntry } from '../utils/storage';
-import { updateProfileApi } from '../services/api';
+import { updateProfileApi, deleteAccountApi, toggle2FAApi } from '../services/api';
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
   'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -22,12 +24,13 @@ const CAT_COLORS = [
 
 type CatModal  = { index: number; name: string; color: string; cost: boolean; neutral: boolean } | null;
 type MonthModal = { monthIdx: number; receita: string; lucro: string } | null;
-type Section   = 'conta' | 'categorias' | 'registros' | 'regras';
+type Section   = 'conta' | 'categorias' | 'registros' | 'regras' | 'seguranca';
 
 // ─── Card acordeão ────────────────────────────────────────────────────────────
 function AccordionCard({
-  id, open, onToggle, icon, title, badge, children,
+  colors, s, id, open, onToggle, icon, title, badge, children,
 }: {
+  colors: any; s: any;
   id: Section; open: boolean; onToggle: () => void;
   icon: string; title: string; badge?: string;
   children: React.ReactNode;
@@ -51,6 +54,7 @@ function AccordionCard({
 
 // ─── Tela ─────────────────────────────────────────────────────────────────────
 export default function ConfigScreen() {
+  const { colors, isDark, toggleTheme } = useTheme();
   const { logout, user, setUser } = useAuth();
   const { cats, rules, forns, saveConfig } = useApp();
 
@@ -68,6 +72,68 @@ export default function ConfigScreen() {
   const [saving,     setSaving]     = useState(false);
 
   useEffect(() => { setLocalCats(cats); setLocalRules(rules); setLocalForns(forns); }, [cats, rules, forns]);
+
+  const s = useMemo(() => StyleSheet.create({
+    root:            { flex: 1, backgroundColor: colors.bg },
+    topbar:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 56, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
+    brand:           { fontSize: 16, fontWeight: '700', color: colors.t1 },
+    saveBtn:         { backgroundColor: colors.green, borderRadius: colors.rs, paddingHorizontal: 16, paddingVertical: 8 },
+    saveBtnText:     { color: '#0a1a0e', fontWeight: '700', fontSize: 14 },
+    scroll:          { padding: 16, paddingBottom: 40 },
+    pageTitle:       { fontSize: 22, fontWeight: '700', color: colors.t1, marginBottom: 16 },
+
+    // Accordion card
+    card:            { backgroundColor: colors.s1, borderRadius: colors.r, borderWidth: 0.5, borderColor: colors.b1, marginBottom: 10, overflow: 'hidden' },
+    cardHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+    cardHeaderLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    cardIcon:        { width: 32, height: 32, borderRadius: 8, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center' },
+    cardTitle:       { fontSize: 14, fontWeight: '600', color: colors.t1 },
+    cardBody:        { paddingHorizontal: 16, paddingBottom: 16 },
+    cardDesc:        { fontSize: 12, color: colors.t2, marginBottom: 12, lineHeight: 18 },
+    badge:           { backgroundColor: colors.s3, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+    badgeText:       { fontSize: 11, color: colors.t3, fontWeight: '600' },
+
+    // Shared
+    subLabel:        { fontSize: 10, fontWeight: '700', color: colors.t3, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
+    inputLabel:      { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 6 },
+    input:           { backgroundColor: colors.s2, borderRadius: colors.rs, borderWidth: 0.5, borderColor: colors.b2, color: colors.t1, padding: 12, fontSize: 13 },
+    inputReadonly:   { justifyContent: 'center' },
+    inputReadonlyText:{ fontSize: 13, color: colors.t3 },
+    divider:         { height: 0.5, backgroundColor: colors.b2 },
+    rowBetween:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+    addBtn:          { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    addBtnText:      { fontSize: 12, color: colors.green, fontWeight: '600' },
+    linkText:        { fontSize: 11, color: colors.t3 },
+    iconBtn:         { padding: 4, marginLeft: 4 },
+    listRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderTopWidth: 0.5, borderTopColor: colors.b1 },
+    listLabel:       { fontSize: 13, color: colors.t1, flex: 1 },
+    listSub:         { fontSize: 11, color: colors.t3, marginTop: 1 },
+    listEmpty:       { fontSize: 12, color: colors.t3, fontStyle: 'italic' },
+    dot:             { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
+    emptyText:       { fontSize: 12, color: colors.t3, fontStyle: 'italic', paddingVertical: 6 },
+    actionBtn:       { backgroundColor: colors.green, borderRadius: colors.rs, padding: 13, alignItems: 'center' },
+    actionBtnText:   { color: '#0a1a0e', fontWeight: '700', fontSize: 14 },
+    logoutBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.s1, borderRadius: colors.r, padding: 16, borderWidth: 0.5, borderColor: `${colors.red}30`, marginTop: 4 },
+    logoutText:        { fontSize: 14, color: colors.red, fontWeight: '600' },
+    deleteAccountBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 14 },
+    deleteAccountText: { fontSize: 13, color: colors.red, fontWeight: '600' },
+
+    // Theme toggle
+    themeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.s1, borderRadius: colors.r, padding: 16, borderWidth: 0.5, borderColor: colors.b1, marginTop: 4 },
+    themeText: { flex: 1, fontSize: 14, color: colors.t1, fontWeight: '600' },
+
+    // Modais
+    overlay:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    sheet:           { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 44, gap: 8 },
+    handle:          { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 8 },
+    sheetTitle:      { fontSize: 15, fontWeight: '700', color: colors.t1 },
+    toggleOpt:       { backgroundColor: colors.s2, borderRadius: colors.rs, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.b2 },
+    toggleOptActive: { borderColor: colors.green },
+    toggleOptText:   { fontSize: 13, color: colors.t2 },
+    neutralHint:     { fontSize: 11, color: colors.t3, fontStyle: 'italic' },
+    colorGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
+    colorDot:        { width: 32, height: 32, borderRadius: 16 },
+  }), [colors]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -107,6 +173,30 @@ export default function ConfigScreen() {
     setSavingProfile(false);
   };
 
+  // ── Segurança / 2FA ─────────────────────────────────────────────────────────
+  const [twoFA, setTwoFA] = useState<boolean>(!!user?.two_factor_enabled);
+  const [twoFASaving, setTwoFASaving] = useState(false);
+
+  useEffect(() => { setTwoFA(!!user?.two_factor_enabled); }, [user?.two_factor_enabled]);
+
+  const handleToggle2FA = async (value: boolean) => {
+    setTwoFASaving(true);
+    try {
+      await toggle2FAApi(value);
+      setTwoFA(value);
+      setUser({ ...user!, two_factor_enabled: value });
+      Alert.alert(
+        value ? '2FA ativado' : '2FA desativado',
+        value
+          ? 'A partir do próximo login, você precisará inserir um código enviado por e-mail.'
+          : 'A verificação em duas etapas foi desativada.',
+      );
+    } catch (e: any) {
+      Alert.alert('Erro', e.response?.data?.error || 'Não foi possível alterar.');
+    }
+    setTwoFASaving(false);
+  };
+
   // ── Categorias ──────────────────────────────────────────────────────────────
   const [catModal, setCatModal] = useState<CatModal>(null);
 
@@ -144,7 +234,7 @@ export default function ConfigScreen() {
   const prevYearNum = new Date().getFullYear() - 1;
 
   useEffect(() => {
-    getPrevYear().then(d => setPrevYear(d || { year: prevYearNum, months: {} }));
+    getPrevYear(user!.id).then(d => setPrevYear(d || { year: prevYearNum, months: {} }));
   }, []);
 
   const openMonthModal = (idx: number) => {
@@ -163,7 +253,7 @@ export default function ConfigScreen() {
     const updated: PrevYearData = { year: prevYearNum, months: { ...(prevYear?.months || {}), [key]: entry } };
     if (entry.receita === 0 && !entry.lucro) delete updated.months[key];
     setPrevYear(updated); setSavingPrev(true);
-    await savePrevYear(updated); setSavingPrev(false); setMonthModal(null);
+    await savePrevYear(user!.id, updated); setSavingPrev(false); setMonthModal(null);
   };
   const monthEntry = (idx: number) => prevYear?.months[String(idx + 1).padStart(2, '0')] ?? null;
 
@@ -193,7 +283,7 @@ export default function ConfigScreen() {
     <View style={s.root}>
       {/* Topbar */}
       <View style={s.topbar}>
-        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>.</Text>mensal</Text>
+        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>Fácil</Text></Text>
         <TouchableOpacity onPress={handleSave} disabled={saving} style={s.saveBtn}>
           {saving
             ? <ActivityIndicator color="#0a1a0e" size="small" />
@@ -205,7 +295,7 @@ export default function ConfigScreen() {
         <Text style={s.pageTitle}>Configurações</Text>
 
         {/* ══ MINHA CONTA ══════════════════════════════════════════════════════ */}
-        <AccordionCard id="conta" open={open.has('conta')} onToggle={() => toggle('conta')}
+        <AccordionCard colors={colors} s={s} id="conta" open={open.has('conta')} onToggle={() => toggle('conta')}
           icon="person-circle-outline" title="Minha Conta">
 
           {/* Meus Dados */}
@@ -245,10 +335,59 @@ export default function ConfigScreen() {
               ? <ActivityIndicator color="#0a1a0e" size="small" />
               : <Text style={s.actionBtnText}>Salvar dados da conta</Text>}
           </TouchableOpacity>
+
+          <View style={[s.divider, { marginTop: 14 }]} />
+          <TouchableOpacity style={s.deleteAccountBtn} onPress={() => {
+            Alert.alert(
+              'Excluir conta',
+              'Tem certeza? Todos os seus dados, histórico e configurações serão apagados permanentemente. Esta ação não pode ser desfeita.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Excluir conta', style: 'destructive', onPress: async () => {
+                  try {
+                    await deleteAccountApi();
+                    logout();
+                  } catch {
+                    Alert.alert('Erro', 'Não foi possível excluir a conta. Tente novamente.');
+                  }
+                }},
+              ]
+            );
+          }}>
+            <Ionicons name="trash-outline" size={15} color={colors.red} />
+            <Text style={s.deleteAccountText}>Excluir minha conta</Text>
+          </TouchableOpacity>
+        </AccordionCard>
+
+        {/* ══ SEGURANÇA ════════════════════════════════════════════════════════ */}
+        <AccordionCard colors={colors} s={s} id="seguranca" open={open.has('seguranca')} onToggle={() => toggle('seguranca')}
+          icon="shield-checkmark-outline" title="Segurança">
+
+          <Text style={s.cardDesc}>
+            Com a verificação em duas etapas ativada, um código de 6 dígitos será enviado para seu e-mail a cada login.
+          </Text>
+
+          <View style={[s.rowBetween, { marginBottom: 0 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.t1 }}>Verificação em 2 etapas</Text>
+              <Text style={{ fontSize: 12, color: colors.t2, marginTop: 2 }}>
+                {twoFA ? 'Ativada — código via e-mail no login' : 'Desativada'}
+              </Text>
+            </View>
+            {twoFASaving
+              ? <ActivityIndicator size="small" color={colors.green} />
+              : <Switch
+                  value={twoFA}
+                  onValueChange={handleToggle2FA}
+                  trackColor={{ false: colors.b3, true: `${colors.green}60` }}
+                  thumbColor={twoFA ? colors.green : colors.t3}
+                />
+            }
+          </View>
         </AccordionCard>
 
         {/* ══ CATEGORIAS ══════════════════════════════════════════════════════ */}
-        <AccordionCard id="categorias" open={open.has('categorias')} onToggle={() => toggle('categorias')}
+        <AccordionCard colors={colors} s={s} id="categorias" open={open.has('categorias')} onToggle={() => toggle('categorias')}
           icon="pricetags-outline" title="Categorias" badge={String(localCats.length)}>
 
           <View style={s.rowBetween}>
@@ -277,7 +416,7 @@ export default function ConfigScreen() {
         </AccordionCard>
 
         {/* ══ REGISTROS ANTERIORES ════════════════════════════════════════════ */}
-        <AccordionCard id="registros" open={open.has('registros')} onToggle={() => toggle('registros')}
+        <AccordionCard colors={colors} s={s} id="registros" open={open.has('registros')} onToggle={() => toggle('registros')}
           icon="bar-chart-outline" title="Registros Anteriores">
 
           <Text style={s.cardDesc}>
@@ -302,7 +441,7 @@ export default function ConfigScreen() {
         </AccordionCard>
 
         {/* ══ REGRAS DE CLASSIFICAÇÃO ═════════════════════════════════════════ */}
-        <AccordionCard id="regras" open={open.has('regras')} onToggle={() => toggle('regras')}
+        <AccordionCard colors={colors} s={s} id="regras" open={open.has('regras')} onToggle={() => toggle('regras')}
           icon="git-branch-outline" title="Regras de Classificação">
 
           {/* Regras automáticas */}
@@ -350,6 +489,18 @@ export default function ConfigScreen() {
               </View>
             ))}
         </AccordionCard>
+
+        {/* Theme toggle */}
+        <View style={s.themeRow}>
+          <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={colors.t2} />
+          <Text style={s.themeText}>{isDark ? 'Tema escuro' : 'Tema claro'}</Text>
+          <Switch
+            value={!isDark}
+            onValueChange={toggleTheme}
+            trackColor={{ false: colors.s3, true: `${colors.green}80` }}
+            thumbColor={!isDark ? colors.green : colors.t3}
+          />
+        </View>
 
         {/* Logout */}
         <TouchableOpacity style={s.logoutBtn} onPress={() => Alert.alert('Sair', 'Deseja sair da conta?', [
@@ -405,121 +556,84 @@ export default function ConfigScreen() {
 
       {/* ── Modal mês anterior ── */}
       <Modal visible={!!monthModal} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setMonthModal(null)}>
-          <View style={s.sheet}>
-            <View style={s.handle} />
-            <Text style={s.sheetTitle}>{monthModal ? MONTH_NAMES[monthModal.monthIdx] : ''} {prevYearNum}</Text>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); setMonthModal(null); }}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={s.sheet}>
+                <View style={s.handle} />
+                <Text style={s.sheetTitle}>{monthModal ? MONTH_NAMES[monthModal.monthIdx] : ''} {prevYearNum}</Text>
 
-            <Text style={s.inputLabel}>FATURAMENTO (R$)</Text>
-            <TextInput style={[s.input, { marginBottom: 12 }]}
-              value={monthModal?.receita || ''} onChangeText={v => setMonthModal(p => p ? { ...p, receita: v } : p)}
-              placeholder="0,00" placeholderTextColor={colors.t3} keyboardType="decimal-pad" />
+                <Text style={s.inputLabel}>FATURAMENTO (R$)</Text>
+                <TextInput style={[s.input, { marginBottom: 12 }]}
+                  value={monthModal?.receita || ''} onChangeText={v => setMonthModal(p => p ? { ...p, receita: v } : p)}
+                  placeholder="0,00" placeholderTextColor={colors.t3} keyboardType="decimal-pad"
+                  returnKeyType="next" />
 
-            <Text style={s.inputLabel}>LUCRO (R$) — opcional</Text>
-            <TextInput style={[s.input, { marginBottom: 14 }]}
-              value={monthModal?.lucro || ''} onChangeText={v => setMonthModal(p => p ? { ...p, lucro: v } : p)}
-              placeholder="Deixe em branco se não souber" placeholderTextColor={colors.t3} keyboardType="decimal-pad" />
+                <Text style={s.inputLabel}>LUCRO (R$) — opcional</Text>
+                <TextInput style={[s.input, { marginBottom: 14 }]}
+                  value={monthModal?.lucro || ''} onChangeText={v => setMonthModal(p => p ? { ...p, lucro: v } : p)}
+                  placeholder="Deixe em branco se não souber" placeholderTextColor={colors.t3} keyboardType="decimal-pad"
+                  returnKeyType="done" onSubmitEditing={saveMonth} />
 
-            <TouchableOpacity style={s.actionBtn} onPress={saveMonth}>
-              <Text style={s.actionBtnText}>Salvar</Text>
+                <TouchableOpacity style={s.actionBtn} onPress={saveMonth}>
+                  <Text style={s.actionBtnText}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Modal regra ── */}
       <Modal visible={ruleModal} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setRuleModal(false)}>
-          <View style={s.sheet}>
-            <View style={s.handle} />
-            <Text style={s.sheetTitle}>Nova regra automática</Text>
-            <Text style={s.inputLabel}>PALAVRA-CHAVE</Text>
-            <TextInput style={[s.input, { marginBottom: 12 }]} value={newKw} onChangeText={setNewKw}
-              placeholder="ex: UBER, GOOGLE ADS" placeholderTextColor={colors.t3} autoCapitalize="characters" />
-            <Text style={s.inputLabel}>CATEGORIA</Text>
-            <TextInput style={[s.input, { marginBottom: 14 }]} value={newCat} onChangeText={setNewCat}
-              placeholder="ex: Fornecedores" placeholderTextColor={colors.t3} />
-            <TouchableOpacity style={s.actionBtn} onPress={addRule}>
-              <Text style={s.actionBtnText}>Adicionar regra</Text>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); setRuleModal(false); }}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={s.sheet}>
+                <View style={s.handle} />
+                <Text style={s.sheetTitle}>Nova regra automática</Text>
+                <Text style={s.inputLabel}>PALAVRA-CHAVE</Text>
+                <TextInput style={[s.input, { marginBottom: 12 }]} value={newKw} onChangeText={setNewKw}
+                  placeholder="ex: UBER, GOOGLE ADS" placeholderTextColor={colors.t3} autoCapitalize="characters"
+                  returnKeyType="next" />
+                <Text style={s.inputLabel}>CATEGORIA</Text>
+                <TextInput style={[s.input, { marginBottom: 14 }]} value={newCat} onChangeText={setNewCat}
+                  placeholder="ex: Fornecedores" placeholderTextColor={colors.t3}
+                  returnKeyType="done" onSubmitEditing={addRule} />
+                <TouchableOpacity style={s.actionBtn} onPress={addRule}>
+                  <Text style={s.actionBtnText}>Adicionar regra</Text>
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Modal fornecedor ── */}
       <Modal visible={fornModal} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setFornModal(false)}>
-          <View style={s.sheet}>
-            <View style={s.handle} />
-            <Text style={s.sheetTitle}>Novo fornecedor</Text>
-            <Text style={s.inputLabel}>NOME</Text>
-            <TextInput style={[s.input, { marginBottom: 12 }]} value={newFornName} onChangeText={setNewFornName}
-              placeholder="ex: Meta Ads" placeholderTextColor={colors.t3} />
-            <Text style={s.inputLabel}>PALAVRAS-CHAVE (vírgula)</Text>
-            <TextInput style={[s.input, { marginBottom: 14 }]} value={newFornKw} onChangeText={setNewFornKw}
-              placeholder="ex: FACEBOOK, META" placeholderTextColor={colors.t3} autoCapitalize="characters" />
-            <TouchableOpacity style={s.actionBtn} onPress={addForn}>
-              <Text style={s.actionBtnText}>Adicionar fornecedor</Text>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { Keyboard.dismiss(); setFornModal(false); }}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={s.sheet}>
+                <View style={s.handle} />
+                <Text style={s.sheetTitle}>Novo fornecedor</Text>
+                <Text style={s.inputLabel}>NOME</Text>
+                <TextInput style={[s.input, { marginBottom: 12 }]} value={newFornName} onChangeText={setNewFornName}
+                  placeholder="ex: Meta Ads" placeholderTextColor={colors.t3}
+                  returnKeyType="next" />
+                <Text style={s.inputLabel}>PALAVRAS-CHAVE (vírgula)</Text>
+                <TextInput style={[s.input, { marginBottom: 14 }]} value={newFornKw} onChangeText={setNewFornKw}
+                  placeholder="ex: FACEBOOK, META" placeholderTextColor={colors.t3} autoCapitalize="characters"
+                  returnKeyType="done" onSubmitEditing={addForn} />
+                <TouchableOpacity style={s.actionBtn} onPress={addForn}>
+                  <Text style={s.actionBtnText}>Adicionar fornecedor</Text>
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  root:            { flex: 1, backgroundColor: colors.bg },
-  topbar:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 56, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
-  brand:           { fontSize: 16, fontWeight: '700', color: colors.t1 },
-  saveBtn:         { backgroundColor: colors.green, borderRadius: colors.rs, paddingHorizontal: 16, paddingVertical: 8 },
-  saveBtnText:     { color: '#0a1a0e', fontWeight: '700', fontSize: 14 },
-  scroll:          { padding: 16, paddingBottom: 40 },
-  pageTitle:       { fontSize: 22, fontWeight: '700', color: colors.t1, marginBottom: 16 },
-
-  // Accordion card
-  card:            { backgroundColor: colors.s1, borderRadius: colors.r, borderWidth: 0.5, borderColor: colors.b1, marginBottom: 10, overflow: 'hidden' },
-  cardHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-  cardHeaderLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardIcon:        { width: 32, height: 32, borderRadius: 8, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center' },
-  cardTitle:       { fontSize: 14, fontWeight: '600', color: colors.t1 },
-  cardBody:        { paddingHorizontal: 16, paddingBottom: 16 },
-  cardDesc:        { fontSize: 12, color: colors.t2, marginBottom: 12, lineHeight: 18 },
-  badge:           { backgroundColor: colors.s3, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  badgeText:       { fontSize: 11, color: colors.t3, fontWeight: '600' },
-
-  // Shared
-  subLabel:        { fontSize: 10, fontWeight: '700', color: colors.t3, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
-  inputLabel:      { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 6 },
-  input:           { backgroundColor: colors.s2, borderRadius: colors.rs, borderWidth: 0.5, borderColor: colors.b2, color: colors.t1, padding: 12, fontSize: 13 },
-  inputReadonly:   { justifyContent: 'center' },
-  inputReadonlyText:{ fontSize: 13, color: colors.t3 },
-  divider:         { height: 0.5, backgroundColor: colors.b2 },
-  rowBetween:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  addBtn:          { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  addBtnText:      { fontSize: 12, color: colors.green, fontWeight: '600' },
-  linkText:        { fontSize: 11, color: colors.t3 },
-  iconBtn:         { padding: 4, marginLeft: 4 },
-  listRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderTopWidth: 0.5, borderTopColor: colors.b1 },
-  listLabel:       { fontSize: 13, color: colors.t1, flex: 1 },
-  listSub:         { fontSize: 11, color: colors.t3, marginTop: 1 },
-  listEmpty:       { fontSize: 12, color: colors.t3, fontStyle: 'italic' },
-  dot:             { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
-  emptyText:       { fontSize: 12, color: colors.t3, fontStyle: 'italic', paddingVertical: 6 },
-  actionBtn:       { backgroundColor: colors.green, borderRadius: colors.rs, padding: 13, alignItems: 'center' },
-  actionBtnText:   { color: '#0a1a0e', fontWeight: '700', fontSize: 14 },
-  logoutBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.s1, borderRadius: colors.r, padding: 16, borderWidth: 0.5, borderColor: `${colors.red}30`, marginTop: 4 },
-  logoutText:      { fontSize: 14, color: colors.red, fontWeight: '600' },
-
-  // Modais
-  overlay:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet:           { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 44, gap: 8 },
-  handle:          { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 8 },
-  sheetTitle:      { fontSize: 15, fontWeight: '700', color: colors.t1 },
-  toggleOpt:       { backgroundColor: colors.s2, borderRadius: colors.rs, padding: 11, alignItems: 'center', borderWidth: 1, borderColor: colors.b2 },
-  toggleOptActive: { borderColor: colors.green },
-  toggleOptText:   { fontSize: 13, color: colors.t2 },
-  neutralHint:     { fontSize: 11, color: colors.t3, fontStyle: 'italic' },
-  colorGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
-  colorDot:        { width: 32, height: 32, borderRadius: 16 },
-});

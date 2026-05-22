@@ -6,7 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { AppProvider } from '../context/AppContext';
-import { colors } from '../theme';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 
 import LoginScreen     from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
@@ -22,23 +22,25 @@ const noHeader = { headerShown: false };
 
 function NovaDREButton() {
   const nav = useNavigation<any>();
+  const { colors } = useTheme();
   return (
     <TouchableOpacity style={fab.btn} onPress={() => nav.navigate('Upload')} activeOpacity={0.85}>
-      <View style={fab.inner}>
+      <View style={[fab.inner, { backgroundColor: colors.green, shadowColor: colors.green }]}>
         <Ionicons name="add" size={26} color="#0a1a0e" />
       </View>
-      <Text style={fab.label}>Nova DRE</Text>
+      <Text style={[fab.label, { color: colors.green }]}>Nova DRE</Text>
     </TouchableOpacity>
   );
 }
 
 const fab = StyleSheet.create({
   btn:   { flex: 1, alignItems: 'center', justifyContent: 'center', top: -10 },
-  inner: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center', shadowColor: colors.green, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
-  label: { fontSize: 10, fontWeight: '700', color: colors.green, marginTop: 3 },
+  inner: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  label: { fontSize: 10, fontWeight: '700', marginTop: 3 },
 });
 
 function HomeTabs() {
+  const { colors } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -88,8 +90,9 @@ function AppStack() {
   );
 }
 
-export default function AppNavigator() {
+function AppNavigatorInner() {
   const { user, loading } = useAuth();
+  const { colors } = useTheme();
 
   if (loading) {
     return (
@@ -110,5 +113,13 @@ export default function AppNavigator() {
         )
       }
     </NavigationContainer>
+  );
+}
+
+export default function AppNavigator() {
+  return (
+    <ThemeProvider>
+      <AppNavigatorInner />
+    </ThemeProvider>
   );
 }

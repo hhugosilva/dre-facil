@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, G } from 'react-native-svg';
-import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { fmtBRL, mesLabel } from '../utils/format';
 import { saveDREApi } from '../services/api';
@@ -13,7 +13,7 @@ import { saveDREApi } from '../services/api';
 const W = Dimensions.get('window').width;
 
 // ─── Donut chart SVG ─────────────────────────────────────────────────────────
-function DonutChart({ slices, size = 220 }: { slices: { value: number; color: string }[]; size?: number }) {
+function DonutChart({ slices, size = 220, colors }: { slices: { value: number; color: string }[]; size?: number; colors: any }) {
   const total = slices.reduce((s, d) => s + d.value, 0);
   if (!total) return null;
   const r = size * 0.37;
@@ -50,6 +50,7 @@ const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
 const MONTHS_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 export default function ResultadoScreen({ navigation, route }: any) {
+  const { colors } = useTheme();
   const { mesKey } = route.params;
   const { allTx, cats, loadData } = useApp();
   const [saving, setSaving]               = useState(false);
@@ -85,6 +86,61 @@ export default function ResultadoScreen({ navigation, route }: any) {
 
   const donutSlices = sortedCustos.map(([cat, val]) => ({ value: val, color: getCatColor(cat) }));
 
+  const s = useMemo(() => StyleSheet.create({
+    root:        { flex: 1, backgroundColor: colors.bg },
+    topbar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
+    brand:       { fontSize: 15, fontWeight: '700', color: colors.t1 },
+    pills:       { flexDirection: 'row', gap: 6 },
+    pill:        { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
+    pillActive:  { borderColor: colors.green },
+    pillText:    { fontSize: 12, color: colors.t3 },
+    pillTextActive: { color: colors.green, fontWeight: '600' },
+    scroll:          { padding: 16, paddingBottom: 40 },
+    pageTitleRow:    { marginBottom: 14 },
+    pageTitle:       { fontSize: 22, fontWeight: '700', color: colors.t1 },
+    changePeriodBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+    changePeriodText:{ fontSize: 12, color: colors.green },
+    modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalSheet:      { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 44 },
+    modalHandle:     { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 14 },
+    modalTitle:      { fontSize: 16, fontWeight: '700', color: colors.t1, marginBottom: 4 },
+    modalSub:        { fontSize: 13, color: colors.t2, marginBottom: 16 },
+    pickerLabel:     { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 10 },
+    pickerRow:       { flexDirection: 'row', gap: 8 },
+    monthGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    pickerChip:      { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.s2, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
+    pickerChipActive:{ borderColor: colors.green, backgroundColor: `${colors.green}18` },
+    pickerChipText:  { fontSize: 14, color: colors.t2 },
+    confirmBtn:      { backgroundColor: colors.green, borderRadius: colors.r, padding: 14, alignItems: 'center', marginTop: 20 },
+    confirmBtnText:  { fontSize: 14, fontWeight: '700', color: '#0a1a0e' },
+    kpiRow:      { flexDirection: 'row', gap: 8, marginBottom: 14 },
+    kpiCard:     { flex: 1, backgroundColor: colors.s1, borderRadius: colors.r, padding: 12, borderWidth: 0.5, borderColor: colors.b1, alignItems: 'center' },
+    kpiLabel:    { fontSize: 9, color: colors.t3, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+    kpiVal:      { fontSize: 14, fontWeight: '700' },
+    dreCard:     { backgroundColor: colors.s1, borderRadius: colors.r, padding: 16, borderWidth: 0.5, borderColor: colors.b1, marginBottom: 12 },
+    sectionTitle:{ fontSize: 10, fontWeight: '600', color: colors.t3, textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 10 },
+    dreRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
+    dreLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+    dreLabel:    { fontSize: 13, color: colors.t2 },
+    dreVal:      { fontSize: 13 },
+    dreSep:      { height: 0.5, backgroundColor: colors.b2 },
+    catDot:      { width: 8, height: 8, borderRadius: 4 },
+    margemText:  { fontSize: 11, color: colors.t3, marginTop: 6, textAlign: 'right' },
+    donutWrap:   { alignItems: 'center', marginVertical: 8 },
+    legendWrap:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    legendRow:   { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    legendDot:   { width: 10, height: 10, borderRadius: 5 },
+    legendText:  { fontSize: 11, color: colors.t2 },
+    barRow:      { marginBottom: 10 },
+    barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+    barLabel:    { fontSize: 12, color: colors.t2, flex: 1 },
+    barPct:      { fontSize: 10, color: colors.t3 },
+    barBg:       { height: 5, backgroundColor: colors.s3, borderRadius: 3 },
+    barFill:     { height: 5, borderRadius: 3 },
+    saveBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.green, borderRadius: colors.r, padding: 16, marginTop: 4 },
+    saveBtnText: { fontSize: 15, fontWeight: '700', color: '#0a1a0e' },
+  }), [colors]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -109,7 +165,7 @@ export default function ResultadoScreen({ navigation, route }: any) {
     <View style={s.root}>
       {/* Topbar */}
       <View style={s.topbar}>
-        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>.</Text>mensal</Text>
+        <Text style={s.brand}>DRE<Text style={{ color: colors.green }}>Fácil</Text></Text>
         <View style={s.pills}>
           {['extratos', 'revisar', 'resultado'].map((lbl, i) => (
             <View key={lbl} style={[s.pill, i === 2 && s.pillActive]}>
@@ -194,7 +250,7 @@ export default function ResultadoScreen({ navigation, route }: any) {
           <View style={s.dreCard}>
             <Text style={s.sectionTitle}>Composição dos Custos</Text>
             <View style={s.donutWrap}>
-              <DonutChart slices={donutSlices} size={W - 80} />
+              <DonutChart slices={donutSlices} size={W - 80} colors={colors} />
             </View>
             {/* Legend */}
             <View style={s.legendWrap}>
@@ -295,57 +351,3 @@ export default function ResultadoScreen({ navigation, route }: any) {
   );
 }
 
-const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: colors.bg },
-  topbar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
-  brand:       { fontSize: 15, fontWeight: '700', color: colors.t1 },
-  pills:       { flexDirection: 'row', gap: 6 },
-  pill:        { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
-  pillActive:  { borderColor: colors.green },
-  pillText:    { fontSize: 12, color: colors.t3 },
-  pillTextActive: { color: colors.green, fontWeight: '600' },
-  scroll:          { padding: 16, paddingBottom: 40 },
-  pageTitleRow:    { marginBottom: 14 },
-  pageTitle:       { fontSize: 22, fontWeight: '700', color: colors.t1 },
-  changePeriodBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
-  changePeriodText:{ fontSize: 12, color: colors.green },
-  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet:      { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 44 },
-  modalHandle:     { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 14 },
-  modalTitle:      { fontSize: 16, fontWeight: '700', color: colors.t1, marginBottom: 4 },
-  modalSub:        { fontSize: 13, color: colors.t2, marginBottom: 16 },
-  pickerLabel:     { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 10 },
-  pickerRow:       { flexDirection: 'row', gap: 8 },
-  monthGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pickerChip:      { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.s2, borderRadius: 20, borderWidth: 1, borderColor: colors.b2 },
-  pickerChipActive:{ borderColor: colors.green, backgroundColor: `${colors.green}18` },
-  pickerChipText:  { fontSize: 14, color: colors.t2 },
-  confirmBtn:      { backgroundColor: colors.green, borderRadius: colors.r, padding: 14, alignItems: 'center', marginTop: 20 },
-  confirmBtnText:  { fontSize: 14, fontWeight: '700', color: '#0a1a0e' },
-  kpiRow:      { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  kpiCard:     { flex: 1, backgroundColor: colors.s1, borderRadius: colors.r, padding: 12, borderWidth: 0.5, borderColor: colors.b1, alignItems: 'center' },
-  kpiLabel:    { fontSize: 9, color: colors.t3, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  kpiVal:      { fontSize: 14, fontWeight: '700' },
-  dreCard:     { backgroundColor: colors.s1, borderRadius: colors.r, padding: 16, borderWidth: 0.5, borderColor: colors.b1, marginBottom: 12 },
-  sectionTitle:{ fontSize: 10, fontWeight: '600', color: colors.t3, textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 10 },
-  dreRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
-  dreLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  dreLabel:    { fontSize: 13, color: colors.t2 },
-  dreVal:      { fontSize: 13 },
-  dreSep:      { height: 0.5, backgroundColor: colors.b2 },
-  catDot:      { width: 8, height: 8, borderRadius: 4 },
-  margemText:  { fontSize: 11, color: colors.t3, marginTop: 6, textAlign: 'right' },
-  donutWrap:   { alignItems: 'center', marginVertical: 8 },
-  legendWrap:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  legendRow:   { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot:   { width: 10, height: 10, borderRadius: 5 },
-  legendText:  { fontSize: 11, color: colors.t2 },
-  barRow:      { marginBottom: 10 },
-  barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  barLabel:    { fontSize: 12, color: colors.t2, flex: 1 },
-  barPct:      { fontSize: 10, color: colors.t3 },
-  barBg:       { height: 5, backgroundColor: colors.s3, borderRadius: 3 },
-  barFill:     { height: 5, borderRadius: 3 },
-  saveBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.green, borderRadius: colors.r, padding: 16, marginTop: 4 },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#0a1a0e' },
-});

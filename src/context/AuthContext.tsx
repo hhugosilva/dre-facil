@@ -8,6 +8,7 @@ export type User = {
   email: string;
   nome_empresa?: string | null;
   cnpj?: string | null;
+  two_factor_enabled?: boolean;
 };
 
 type UpdateProfileParams = {
@@ -54,9 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (nome: string, email: string, senha: string, empresa?: string) => {
-    const { data } = await registerApi(nome, email, senha, empresa);
-    await setToken(data.token);
-    setUser(data.user);
+    await registerApi(nome, email, senha, empresa);
+    // Não loga automaticamente: usuário precisa verificar o e-mail primeiro
   };
 
   const logout = async () => {

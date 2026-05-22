@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, Platform,
@@ -7,17 +7,21 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { meApi } from '../services/api';
+import {
+  loginApi, meApi, forgotPasswordApi, resendVerifyEmailApi,
+  sendRegisterCodeApi, confirmRegisterCodeApi, resendRegisterCodeApi,
+  verify2FAApi,
+} from '../services/api';
 import { setToken } from '../utils/storage';
 
 WebBrowser.maybeCompleteAuthSession();
 
-type View = 'login' | 'register' | 'forgot';
+type View = 'login' | 'register' | 'forgot' | 'verify-register' | 'verify-2fa';
 
 // ─── Logo ──────────────────────────────────────────────────────────────────────
-function Logo() {
+function Logo({ s, colors }: { s: any; colors: any }) {
   return (
     <View style={s.logoWrap}>
       <View style={s.logoMark}>
@@ -34,7 +38,7 @@ function Logo() {
 }
 
 // ─── Botão social ──────────────────────────────────────────────────────────────
-function SocialButton({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+function SocialButton({ s, colors, icon, label, onPress }: { s: any; colors: any; icon: string; label: string; onPress: () => void }) {
   return (
     <TouchableOpacity style={s.socialBtn} onPress={onPress} activeOpacity={0.75}>
       <Ionicons name={icon as any} size={20} color={colors.t1} />
@@ -45,7 +49,8 @@ function SocialButton({ icon, label, onPress }: { icon: string; label: string; o
 
 // ─── Tela principal ────────────────────────────────────────────────────────────
 export default function LoginScreen() {
-  const { login, register, setUser } = useAuth();
+  const { colors } = useTheme();
+  const { register, setUser } = useAuth();
   const [view, setView]     = useState<View>('login');
   const [nome, setNome]     = useState('');
   const [empresa, setEmpresa] = useState('');
@@ -62,13 +67,95 @@ export default function LoginScreen() {
   const [forgotSent, setForgotSent]   = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Pós-cadastro: aguardar verificação de e-mail
+  // OTP verificação de cadastro
+  const [otpCode, setOtpCode]           = useState('');
+  const [otpLoading, setOtpLoading]     = useState(false);
+  const [otpErr, setOtpErr]             = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSent, setResendSent]     = useState(false);
+  const otpInputRef = useRef<TextInput>(null);
+
+  // Manter pendingVerify apenas para fallback (não usado no fluxo novo)
   const [pendingVerify, setPendingVerify] = useState(false);
 
+  // 2FA
+  const [pending2FAUserId, setPending2FAUserId] = useState<number | null>(null);
+
+
+  const s = useMemo(() => StyleSheet.create({
+    root:         { flex: 1, backgroundColor: colors.bg },
+    scroll:       { flexGrow: 1, padding: 24, paddingTop: 60, justifyContent: 'center' },
+
+    // Logo
+    logoWrap:     { flexDirection: 'row', alignItems: 'center', gap: 14, justifyContent: 'center', marginBottom: 36 },
+    logoMark:     { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
+    logoMarkText: { fontSize: 24, fontWeight: '900', color: '#0a1a0e' },
+    brand:        { fontSize: 28, fontWeight: '800', color: colors.t1, letterSpacing: -0.5 },
+    brandSub:     { fontSize: 12, color: colors.t2, marginTop: 2 },
+
+    // Box
+    box:          { backgroundColor: colors.s1, borderRadius: colors.r, padding: 22, borderWidth: 0.5, borderColor: colors.b2 },
+    title:        { fontSize: 20, fontWeight: '700', color: colors.t1, marginBottom: 18 },
+    label:        { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, marginBottom: 6, textTransform: 'uppercase' },
+    input:        { backgroundColor: colors.s2, borderRadius: colors.rs, borderWidth: 0.5, borderColor: colors.b2, color: colors.t1, padding: 13, fontSize: 14, marginBottom: 14 },
+    inputRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+    eyeBtn:       { position: 'absolute', right: 12, top: 14 },
+    forgotLink:   { alignSelf: 'flex-end', marginBottom: 16, marginTop: 2 },
+    link:         { color: colors.green, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+    err:          { color: colors.red, fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 4 },
+
+    // Política
+    privRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14, marginTop: 4 },
+    checkbox:     { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.b3, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+    checkboxOn:   { backgroundColor: colors.green, borderColor: colors.green },
+    privText:     { fontSize: 12, color: colors.t2, flex: 1, lineHeight: 18 },
+    privLink:     { color: colors.green, fontWeight: '600' },
+
+    // Botão principal
+    btn:          { backgroundColor: colors.green, borderRadius: colors.rs, padding: 15, alignItems: 'center' },
+    btnText:      { color: '#0a1a0e', fontWeight: '700', fontSize: 14 },
+
+    // Social
+    dividerRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 18 },
+    dividerLine:  { flex: 1, height: 0.5, backgroundColor: colors.b2 },
+    dividerText:  { fontSize: 11, color: colors.t3 },
+    socialRow:    { flexDirection: 'row', gap: 10 },
+    socialBtn:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.s2, borderRadius: colors.rs, padding: 13, borderWidth: 0.5, borderColor: colors.b2 },
+    socialBtnText:{ fontSize: 13, fontWeight: '600', color: colors.t1 },
+
+    // Switch mode
+    switchText:   { textAlign: 'center', color: colors.t2, fontSize: 13 },
+    byDrex:       { textAlign: 'center', color: colors.t3, fontSize: 11, marginTop: 28 },
+
+    // Forgot / OTP
+    backRow:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
+    backText:     { fontSize: 13, color: colors.t3 },
+    forgotDesc:   { fontSize: 13, color: colors.t2, lineHeight: 20, marginBottom: 18 },
+    successBox:   { alignItems: 'center', paddingVertical: 12 },
+    successTitle: { fontSize: 18, fontWeight: '700', color: colors.t1, marginTop: 12 },
+    successSub:   { fontSize: 13, color: colors.t2, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+
+    // OTP boxes
+    otpBox:       { width: 46, height: 56, borderRadius: 12, backgroundColor: colors.s2, borderWidth: 1.5, borderColor: colors.b2, alignItems: 'center', justifyContent: 'center' },
+    otpBoxActive: { borderColor: colors.green },
+    otpBoxFilled: { borderColor: `${colors.green}70` },
+    otpDigit:     { fontSize: 26, fontWeight: '700', color: colors.t1 },
+
+    // Modal privacidade
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalSheet:   { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+    modalHandle:  { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 14 },
+    modalTitle:   { fontSize: 17, fontWeight: '700', color: colors.t1, marginBottom: 14 },
+    privBody:     { fontSize: 13, color: colors.t2, lineHeight: 21 },
+    privSection:  { fontWeight: '700', color: colors.t1 },
+  }), [colors]);
 
   const reset = () => {
     setErr(''); setNome(''); setEmpresa(''); setEmail(''); setSenha('');
-    setPrivOk(false); setPendingVerify(false); setForgotEmail(''); setForgotSent(false);
+    setPrivOk(false); setPendingVerify(false); setResendSent(false);
+    setOtpCode(''); setOtpErr('');
+    setForgotEmail(''); setForgotSent(false);
+    setPending2FAUserId(null);
   };
 
   const goTo = (v: View) => { reset(); setView(v); };
@@ -78,15 +165,41 @@ export default function LoginScreen() {
     setErr('');
     if (!email.trim() || !senha) { setErr('Preencha todos os campos.'); return; }
     setLoading(true);
-    try { await login(email.trim().toLowerCase(), senha); }
-    catch (e: any) {
+    try {
+      const { data } = await loginApi(email.trim().toLowerCase(), senha);
+      if (data.twoFactorRequired) {
+        setPending2FAUserId(data.userId);
+        setOtpCode(''); setOtpErr(''); setResendSent(false);
+        setView('verify-2fa');
+        setTimeout(() => otpInputRef.current?.focus(), 400);
+      } else {
+        await setToken(data.token);
+        setUser(data.user);
+      }
+    } catch (e: any) {
       const msg = e.response?.data?.error || e.message || 'Erro de conexão.';
       setErr(msg);
     }
     setLoading(false);
   };
 
-  // ── Cadastro ───────────────────────────────────────────────────────────────
+  // ── Confirmar código 2FA ───────────────────────────────────────────────────
+  const handleConfirm2FA = async () => {
+    if (otpCode.length < 6) { setOtpErr('Digite os 6 dígitos do código.'); return; }
+    setOtpLoading(true); setOtpErr('');
+    try {
+      const { data } = await verify2FAApi(pending2FAUserId!, otpCode);
+      await setToken(data.token);
+      setUser(data.user);
+    } catch (e: any) {
+      setOtpErr(e.response?.data?.error || 'Código incorreto. Tente novamente.');
+      setOtpCode('');
+      setTimeout(() => otpInputRef.current?.focus(), 100);
+    }
+    setOtpLoading(false);
+  };
+
+  // ── Cadastro: envia código para o e-mail ───────────────────────────────────
   const handleRegister = async () => {
     setErr('');
     if (!nome.trim() || !email.trim() || !senha) { setErr('Preencha todos os campos obrigatórios.'); return; }
@@ -94,13 +207,43 @@ export default function LoginScreen() {
     if (!privOk) { setErr('Aceite a Política de Privacidade para continuar.'); return; }
     setLoading(true);
     try {
-      await register(nome.trim(), email.trim().toLowerCase(), senha, empresa.trim() || undefined);
-      setPendingVerify(true);
+      await sendRegisterCodeApi(nome.trim(), email.trim().toLowerCase(), senha, empresa.trim() || undefined);
+      setOtpCode(''); setOtpErr(''); setResendSent(false);
+      setView('verify-register');
+      setTimeout(() => otpInputRef.current?.focus(), 400);
     } catch (e: any) {
-      const msg = e.response?.data?.error || e.message || 'Erro ao criar conta.';
-      setErr(msg);
+      setErr(e.response?.data?.error || e.message || 'Erro ao enviar código.');
     }
     setLoading(false);
+  };
+
+  // ── Confirmar código OTP e criar conta ─────────────────────────────────────
+  const handleConfirmCode = async () => {
+    if (otpCode.length < 6) { setOtpErr('Digite os 6 dígitos do código.'); return; }
+    setOtpLoading(true); setOtpErr('');
+    try {
+      const { data } = await confirmRegisterCodeApi(email.trim().toLowerCase(), otpCode);
+      await setToken(data.token);
+      setUser(data.user);
+    } catch (e: any) {
+      setOtpErr(e.response?.data?.error || 'Código incorreto. Tente novamente.');
+      setOtpCode('');
+      setTimeout(() => otpInputRef.current?.focus(), 100);
+    }
+    setOtpLoading(false);
+  };
+
+  // ── Reenviar código OTP ────────────────────────────────────────────────────
+  const handleResendOtp = async () => {
+    setResendLoading(true);
+    try {
+      await resendRegisterCodeApi(email.trim().toLowerCase());
+      setResendSent(true); setOtpCode(''); setOtpErr('');
+      setTimeout(() => otpInputRef.current?.focus(), 300);
+    } catch (e: any) {
+      setOtpErr(e.response?.data?.error || 'Não foi possível reenviar.');
+    }
+    setResendLoading(false);
   };
 
   // ── Recuperar senha ────────────────────────────────────────────────────────
@@ -108,7 +251,7 @@ export default function LoginScreen() {
     if (!forgotEmail.trim()) { Alert.alert('Atenção', 'Digite seu e-mail.'); return; }
     setForgotLoading(true);
     try {
-      await api.post('/api/auth/forgot-password', { email: forgotEmail.trim().toLowerCase() });
+      await forgotPasswordApi(forgotEmail.trim().toLowerCase());
       setForgotSent(true);
     } catch (e: any) {
       Alert.alert('Erro', e.response?.data?.error || 'Não foi possível enviar o e-mail.');
@@ -127,43 +270,159 @@ export default function LoginScreen() {
     try {
       const result = await WebBrowser.openAuthSessionAsync(startUrl, returnUrl);
       if (result.type === 'success' && result.url) {
-        const parsed = Linking.parse(result.url);
-        const token  = parsed.queryParams?.token as string | undefined;
+        const match = result.url.match(/[?&]token=([^&#]+)/);
+        const token = match ? decodeURIComponent(match[1]) : null;
         if (token) {
           await setToken(token);
           const { data } = await meApi();
           setUser(data.user);
+          setLoading(false);
           return;
         }
+        setErr('Não foi possível autenticar com o Google. Tente novamente.');
+      } else if (result.type !== 'cancel' && result.type !== 'dismiss') {
+        setErr('Autenticação cancelada ou não concluída.');
       }
-      if (result.type !== 'cancel') setErr('Não foi possível entrar com Google.');
-    } catch {
-      setErr('Erro ao entrar com Google.');
+    } catch (e: any) {
+      setErr('Erro ao autenticar com o Google. Tente novamente.');
     }
     setLoading(false);
   };
 
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Vista: Aguardando verificação de e-mail
-  if (pendingVerify) {
+  // Vista: código 2FA
+  if (view === 'verify-2fa') {
     return (
-      <View style={[s.root, { justifyContent: 'center', alignItems: 'center', padding: 32 }]}>
-        <Ionicons name="mail-open-outline" size={64} color={colors.green} />
-        <Text style={[s.brand, { marginTop: 24, fontSize: 22, textAlign: 'center' }]}>Verifique seu e-mail</Text>
-        <Text style={[s.brandSub, { textAlign: 'center', marginTop: 12, lineHeight: 22 }]}>
-          Enviamos um link de confirmação para{'\n'}
-          <Text style={{ color: colors.t1, fontWeight: '600' }}>{email}</Text>
-          {'\n\n'}Clique no link do e-mail para ativar sua conta.
-        </Text>
-        <TouchableOpacity style={[s.btn, { marginTop: 32, width: '100%' }]} onPress={() => goTo('login')}>
-          <Text style={s.btnText}>Já confirmei — Entrar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ marginTop: 16 }} onPress={() => setPendingVerify(false)}>
-          <Text style={s.link}>Voltar</Text>
-        </TouchableOpacity>
-        <Text style={s.byDrex}>by DREX</Text>
-      </View>
+      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={[s.scroll, { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
+          <Logo s={s} colors={colors} />
+          <View style={s.box}>
+            <TouchableOpacity style={s.backRow} onPress={() => goTo('login')}>
+              <Ionicons name="arrow-back" size={16} color={colors.t3} />
+              <Text style={s.backText}>Voltar ao login</Text>
+            </TouchableOpacity>
+
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                <Ionicons name="shield-checkmark-outline" size={26} color={colors.green} />
+              </View>
+              <Text style={s.title}>Verificação em 2 etapas</Text>
+              <Text style={[s.forgotDesc, { textAlign: 'center', marginBottom: 0 }]}>
+                Enviamos um código de 6 dígitos para{'\n'}
+                <Text style={{ color: colors.t1, fontWeight: '600' }}>{email}</Text>
+              </Text>
+            </View>
+
+            {/* Caixas OTP */}
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => otpInputRef.current?.focus()}
+              style={{ marginBottom: 20 }}
+            >
+              <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center' }}>
+                {[0,1,2,3,4,5].map(i => (
+                  <View key={i} style={[s.otpBox, otpCode.length === i && s.otpBoxActive, !!otpCode[i] && s.otpBoxFilled]}>
+                    <Text style={s.otpDigit}>{otpCode[i] || ''}</Text>
+                  </View>
+                ))}
+              </View>
+              <TextInput
+                ref={otpInputRef}
+                style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+                value={otpCode}
+                onChangeText={v => { setOtpErr(''); setOtpCode(v.replace(/\D/g, '').slice(0, 6)); }}
+                keyboardType="number-pad"
+                maxLength={6}
+                caretHidden
+                autoFocus
+              />
+            </TouchableOpacity>
+
+            {!!otpErr && <Text style={[s.err, { marginBottom: 12 }]}>{otpErr}</Text>}
+
+            <TouchableOpacity style={s.btn} onPress={handleConfirm2FA} disabled={otpLoading || otpCode.length < 6}>
+              {otpLoading
+                ? <ActivityIndicator color="#0a1a0e" />
+                : <Text style={[s.btnText, otpCode.length < 6 && { opacity: 0.5 }]}>Confirmar e entrar</Text>}
+            </TouchableOpacity>
+          </View>
+          <Text style={s.byDrex}>by DREX</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Vista: código OTP para criar conta
+  if (view === 'verify-register') {
+    return (
+      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={[s.scroll, { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
+          <Logo s={s} colors={colors} />
+          <View style={s.box}>
+            <TouchableOpacity style={s.backRow} onPress={() => goTo('register')}>
+              <Ionicons name="arrow-back" size={16} color={colors.t3} />
+              <Text style={s.backText}>Voltar</Text>
+            </TouchableOpacity>
+
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                <Ionicons name="mail-outline" size={26} color={colors.green} />
+              </View>
+              <Text style={s.title}>Verifique seu e-mail</Text>
+              <Text style={[s.forgotDesc, { textAlign: 'center', marginBottom: 0 }]}>
+                Enviamos um código de 6 dígitos para{'\n'}
+                <Text style={{ color: colors.t1, fontWeight: '600' }}>{email}</Text>
+              </Text>
+            </View>
+
+            {/* Caixas OTP */}
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => otpInputRef.current?.focus()}
+              style={{ marginBottom: 20 }}
+            >
+              <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center' }}>
+                {[0,1,2,3,4,5].map(i => (
+                  <View key={i} style={[s.otpBox, otpCode.length === i && s.otpBoxActive, !!otpCode[i] && s.otpBoxFilled]}>
+                    <Text style={s.otpDigit}>{otpCode[i] || ''}</Text>
+                  </View>
+                ))}
+              </View>
+              <TextInput
+                ref={otpInputRef}
+                style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+                value={otpCode}
+                onChangeText={v => { setOtpErr(''); setOtpCode(v.replace(/\D/g, '').slice(0, 6)); }}
+                keyboardType="number-pad"
+                maxLength={6}
+                caretHidden
+                autoFocus
+              />
+            </TouchableOpacity>
+
+            {!!otpErr && <Text style={[s.err, { marginBottom: 12 }]}>{otpErr}</Text>}
+            {resendSent && <Text style={{ color: colors.green, fontSize: 12, textAlign: 'center', marginBottom: 12 }}>✓ Novo código enviado!</Text>}
+
+            <TouchableOpacity style={s.btn} onPress={handleConfirmCode} disabled={otpLoading || otpCode.length < 6}>
+              {otpLoading
+                ? <ActivityIndicator color="#0a1a0e" />
+                : <Text style={[s.btnText, otpCode.length < 6 && { opacity: 0.5 }]}>Criar conta</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ marginTop: 16, alignItems: 'center' }}
+              onPress={handleResendOtp}
+              disabled={resendLoading}
+            >
+              {resendLoading
+                ? <ActivityIndicator color={colors.t3} size="small" />
+                : <Text style={s.link}>Reenviar código</Text>}
+            </TouchableOpacity>
+          </View>
+          <Text style={s.byDrex}>by DREX</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -172,7 +431,7 @@ export default function LoginScreen() {
     return (
       <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-          <Logo />
+          <Logo s={s} colors={colors} />
           <View style={s.box}>
             <TouchableOpacity style={s.backRow} onPress={() => goTo('login')}>
               <Ionicons name="arrow-back" size={16} color={colors.t3} />
@@ -221,7 +480,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        <Logo />
+        <Logo s={s} colors={colors} />
 
         <View style={s.box}>
           <Text style={s.title}>{view === 'login' ? 'Entrar na conta' : 'Criar conta'}</Text>
@@ -301,7 +560,7 @@ export default function LoginScreen() {
 
           {/* ── Botões sociais ── */}
           <View style={s.socialRow}>
-            <SocialButton icon="logo-google" label="Google" onPress={handleGoogle} />
+            <SocialButton s={s} colors={colors} icon="logo-google" label="Google" onPress={handleGoogle} />
           </View>
         </View>
 
@@ -355,64 +614,3 @@ export default function LoginScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: colors.bg },
-  scroll:       { flexGrow: 1, padding: 24, paddingTop: 60, justifyContent: 'center' },
-
-  // Logo
-  logoWrap:     { flexDirection: 'row', alignItems: 'center', gap: 14, justifyContent: 'center', marginBottom: 36 },
-  logoMark:     { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
-  logoMarkText: { fontSize: 24, fontWeight: '900', color: '#0a1a0e' },
-  brand:        { fontSize: 28, fontWeight: '800', color: colors.t1, letterSpacing: -0.5 },
-  brandSub:     { fontSize: 12, color: colors.t2, marginTop: 2 },
-
-  // Box
-  box:          { backgroundColor: colors.s1, borderRadius: colors.r, padding: 22, borderWidth: 0.5, borderColor: colors.b2 },
-  title:        { fontSize: 20, fontWeight: '700', color: colors.t1, marginBottom: 18 },
-  label:        { fontSize: 10, fontWeight: '600', color: colors.t3, letterSpacing: 0.7, marginBottom: 6, textTransform: 'uppercase' },
-  input:        { backgroundColor: colors.s2, borderRadius: colors.rs, borderWidth: 0.5, borderColor: colors.b2, color: colors.t1, padding: 13, fontSize: 14, marginBottom: 14 },
-  inputRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  eyeBtn:       { position: 'absolute', right: 12, top: 14 },
-  forgotLink:   { alignSelf: 'flex-end', marginBottom: 16, marginTop: 2 },
-  link:         { color: colors.green, fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  err:          { color: colors.red, fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 4 },
-
-  // Política
-  privRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14, marginTop: 4 },
-  checkbox:     { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.b3, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
-  checkboxOn:   { backgroundColor: colors.green, borderColor: colors.green },
-  privText:     { fontSize: 12, color: colors.t2, flex: 1, lineHeight: 18 },
-  privLink:     { color: colors.green, fontWeight: '600' },
-
-  // Botão principal
-  btn:          { backgroundColor: colors.green, borderRadius: colors.rs, padding: 15, alignItems: 'center' },
-  btnText:      { color: '#0a1a0e', fontWeight: '700', fontSize: 14 },
-
-  // Social
-  dividerRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 18 },
-  dividerLine:  { flex: 1, height: 0.5, backgroundColor: colors.b2 },
-  dividerText:  { fontSize: 11, color: colors.t3 },
-  socialRow:    { flexDirection: 'row', gap: 10 },
-  socialBtn:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.s2, borderRadius: colors.rs, padding: 13, borderWidth: 0.5, borderColor: colors.b2 },
-  socialBtnText:{ fontSize: 13, fontWeight: '600', color: colors.t1 },
-
-  // Switch mode
-  switchText:   { textAlign: 'center', color: colors.t2, fontSize: 13 },
-  byDrex:       { textAlign: 'center', color: colors.t3, fontSize: 11, marginTop: 28 },
-
-  // Forgot
-  backRow:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
-  backText:     { fontSize: 13, color: colors.t3 },
-  forgotDesc:   { fontSize: 13, color: colors.t2, lineHeight: 20, marginBottom: 18 },
-  successBox:   { alignItems: 'center', paddingVertical: 12 },
-  successTitle: { fontSize: 18, fontWeight: '700', color: colors.t1, marginTop: 12 },
-  successSub:   { fontSize: 13, color: colors.t2, textAlign: 'center', marginTop: 8, lineHeight: 20 },
-
-  // Modal privacidade
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet:   { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  modalHandle:  { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 14 },
-  modalTitle:   { fontSize: 17, fontWeight: '700', color: colors.t1, marginBottom: 14 },
-  privBody:     { fontSize: 13, color: colors.t2, lineHeight: 21 },
-  privSection:  { fontWeight: '700', color: colors.t1 },
-});
