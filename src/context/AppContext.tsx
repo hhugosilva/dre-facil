@@ -35,9 +35,12 @@ type AppCtx = {
   rules: Rule[];
   forns: Forn[];
   allTx: AllTx[];
+  businessType: string | null;
+  configLoaded: boolean;
   setAllTx: (txs: AllTx[]) => void;
   loadData: () => Promise<void>;
   saveConfig: (cats: Category[], rules: Rule[], forns: Forn[]) => Promise<void>;
+  completeOnboarding: (type: string, cats: Category[], rules: Rule[], forns: Forn[]) => Promise<void>;
   setCats: (c: Category[]) => void;
   setRules: (r: Rule[]) => void;
   setForns: (f: Forn[]) => void;
@@ -52,6 +55,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [rules, setRules] = useState<Rule[]>([]);
   const [forns, setForns] = useState<Forn[]>([]);
   const [allTx, setAllTx] = useState<AllTx[]>([]);
+  const [businessType, setBusinessType] = useState<string | null>(null);
+  const [configLoaded, setConfigLoaded] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -66,12 +71,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setRules(rArr);
       }
       if (cfg.fornecedores) setForns(cfg.fornecedores);
+      setBusinessType(cfg.business_type || null);
     } catch {}
+    setConfigLoaded(true);
   }, []);
 
   const saveConfig = async (c: Category[], r: Rule[], f: Forn[]) => {
     setCats(c); setRules(r); setForns(f);
-    await saveConfigApi({ categories: c, rules: r, fornecedores: f });
+    await saveConfigApi({ categories: c, rules: r, fornecedores: f, business_type: businessType });
+  };
+
+  const completeOnboarding = async (type: string, c: Category[], r: Rule[], f: Forn[]) => {
+    setCats(c); setRules(r); setForns(f); setBusinessType(type);
+    await saveConfigApi({ categories: c, rules: r, fornecedores: f, business_type: type });
   };
 
   const applyRules = (desc: string): string | null => {
@@ -83,7 +95,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ hist, cats, rules, forns, allTx, setAllTx, loadData, saveConfig, setCats, setRules, setForns, applyRules }}>
+    <AppContext.Provider value={{ hist, cats, rules, forns, allTx, businessType, configLoaded, setAllTx, loadData, saveConfig, completeOnboarding, setCats, setRules, setForns, applyRules }}>
       {children}
     </AppContext.Provider>
   );

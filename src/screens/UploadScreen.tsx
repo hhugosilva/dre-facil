@@ -55,7 +55,7 @@ function slotColor(bank: string, clrs: any) {
 export default function UploadScreen({ navigation }: any) {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { rules, forns, setAllTx, applyRules } = useApp();
+  const { rules, forns, cats, businessType, setAllTx, applyRules } = useApp();
   const [slots, setSlots] = useState<Slot[]>([
     { id: 1, bank: 'auto', customBank: '', detecting: false, file: null },
   ]);
@@ -230,7 +230,7 @@ export default function UploadScreen({ navigation }: any) {
         try {
           const { data } = await classifyApi(
             toClassify.map(t => ({ id: t.id, descricao: t.descricao, valor: t.valor })),
-            rules, forns,
+            rules, forns, cats, businessType,
           );
           const classified: Record<number, string> = {};
           (data.results || []).forEach((r: any) => { if (r.id !== undefined) classified[r.id] = r.categoria; });

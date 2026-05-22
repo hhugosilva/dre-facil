@@ -8,12 +8,14 @@ import { useAuth } from '../context/AuthContext';
 import { AppProvider } from '../context/AppContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 
-import LoginScreen     from '../screens/LoginScreen';
-import DashboardScreen from '../screens/DashboardScreen';
-import UploadScreen    from '../screens/UploadScreen';
-import ReviewScreen    from '../screens/ReviewScreen';
-import ResultadoScreen from '../screens/ResultadoScreen';
-import ConfigScreen    from '../screens/ConfigScreen';
+import LoginScreen      from '../screens/LoginScreen';
+import DashboardScreen  from '../screens/DashboardScreen';
+import UploadScreen     from '../screens/UploadScreen';
+import ReviewScreen     from '../screens/ReviewScreen';
+import ResultadoScreen  from '../screens/ResultadoScreen';
+import ConfigScreen     from '../screens/ConfigScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
+import { useApp } from '../context/AppContext';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -90,6 +92,24 @@ function AppStack() {
   );
 }
 
+function AppRoot() {
+  const { colors } = useTheme();
+  const { businessType, configLoaded, loadData } = useApp();
+
+  React.useEffect(() => { loadData(); }, []);
+
+  if (!configLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={colors.green} size="large" />
+      </View>
+    );
+  }
+
+  if (!businessType) return <OnboardingScreen />;
+  return <AppStack />;
+}
+
 function AppNavigatorInner() {
   const { user, loading } = useAuth();
   const { colors } = useTheme();
@@ -105,7 +125,7 @@ function AppNavigatorInner() {
   return (
     <NavigationContainer>
       {user
-        ? <AppProvider><AppStack /></AppProvider>
+        ? <AppProvider><AppRoot /></AppProvider>
         : (
           <Stack.Navigator screenOptions={noHeader}>
             <Stack.Screen name="Login" component={LoginScreen} />

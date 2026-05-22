@@ -35,8 +35,8 @@ export const getConfigApi  = () => api.get('/api/config');
 export const saveConfigApi = (data: any) => api.put('/api/config', data);
 
 // AI
-export const classifyApi = (transactions: any[], rules: any[], fornConfig: any[]) =>
-  api.post('/api/ai/classify', { transactions, rules, fornConfig });
+export const classifyApi = (transactions: any[], rules: any[], fornConfig: any[], categories?: any[], businessType?: string | null) =>
+  api.post('/api/ai/classify', { transactions, rules, fornConfig, categories, businessType });
 
 export const forgotPasswordApi = (email: string) =>
   api.post('/api/auth/forgot-password', { email });
