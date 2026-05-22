@@ -62,3 +62,7 @@ export const parsePDFApi = (base64: string, bankHint?: string) =>
 // 2FA
 export const toggle2FAApi = (enabled: boolean) => api.put('/api/auth/toggle-2fa', { enabled });
 export const verify2FAApi = (userId: number, code: string) => api.post('/api/auth/verify-2fa', { userId, code });
+
+// Onboarding IA
+export const suggestCategoriesApi = (description: string) =>
+  api.post('/api/ai/suggest-categories', { description });
