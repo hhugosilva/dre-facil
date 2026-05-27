@@ -131,6 +131,54 @@ async function saveCachedFormat(bankId: string, fmt: any) {
   } catch {}
 }
 
+// ─── C6 Bank: extrato conta corrente XLSX ────────────────────────────────────
+function parseC6XLSX(allRows: any[][]): Transaction[] {
+  const hr = allRows.findIndex(r => r.some(c => /Data Lan/i.test(String(c))));
+  if (hr < 0) return [];
+  const hdrs = allRows[hr].map((h: any) => String(h || '').trim());
+  const iEntrada = hdrs.findIndex(h => /Entrada/i.test(h));
+  const iSaida   = hdrs.findIndex(h => /Sa[íi]da/i.test(h));
+  const iData    = hdrs.findIndex(h => /Data Lan/i.test(h));
+  const iTitulo  = hdrs.findIndex(h => /T[íi]tulo/i.test(h));
+  const iDesc    = hdrs.findIndex(h => /Descri/i.test(h));
+  if (iEntrada < 0 || iSaida < 0) return [];
+  return allRows.slice(hr + 1)
+    .filter(r => r.some(c => String(c || '').trim()))
+    .map(r => {
+      const titulo = String(r[iTitulo] || '').trim();
+      const desc   = String(r[iDesc] || '').trim();
+      const descricao = desc && desc !== titulo ? `${titulo} - ${desc}`.trim() : titulo || desc;
+      if (!descricao) return null;
+      const ent = parseVal(r[iEntrada]);
+      const sai = parseVal(r[iSaida]);
+      if (ent === 0 && sai === 0) return null;
+      const valor = ent > 0 ? ent : -sai;
+      return { data: String(r[iData] || '').trim(), descricao, valor };
+    })
+    .filter(Boolean) as Transaction[];
+}
+
+// ─── C6 Bank: fatura cartão CSV ───────────────────────────────────────────────
+function parseC6Fatura(text: string): Transaction[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const hi = lines.findIndex(l => /Data de Compra/i.test(l));
+  if (hi < 0) return [];
+  const headers = splitCSVLine(lines[hi], ';').map(h => h.replace(/"/g, '').trim());
+  const iData  = headers.findIndex(h => /Data de Compra/i.test(h));
+  const iDesc  = headers.findIndex(h => /Descri/i.test(h));
+  const iValor = headers.findIndex(h => /Valor \(em R\$\)/i.test(h));
+  if (iDesc < 0 || iValor < 0) return [];
+  return lines.slice(hi + 1).filter(l => l.trim()).map(line => {
+    const cols = splitCSVLine(line, ';').map(c => c.replace(/"/g, '').trim());
+    const descricao = cols[iDesc] || '';
+    if (!descricao) return null;
+    const raw = parseVal(cols[iValor]);
+    if (raw === 0) return null;
+    const valor = -raw; // na fatura, positivo = gasto (despesa), negativo = pagamento/crédito
+    return { data: iData >= 0 ? cols[iData] : '', descricao, valor };
+  }).filter(Boolean) as Transaction[];
+}
+
 // ─── Parse XLSX ──────────────────────────────────────────────────────────────
 export async function parseXLSX(uri: string, bankId = 'auto'): Promise<Transaction[]> {
   const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
@@ -158,6 +206,12 @@ export async function parseXLSX(uri: string, bankId = 'auto'): Promise<Transacti
       return o;
     })
     .filter((r: any) => Object.keys(r).length > 1);
+
+  // C6 Bank: usa parser dedicado que combina Título + Descrição
+  if (bankId === 'c6') {
+    const c6Txs = parseC6XLSX(allRows);
+    if (c6Txs.length > 0) return c6Txs;
+  }
 
   const colMap = autoDetectColMap(hdrs);
   const txs = applyColumnMap(rows, colMap as any);
@@ -194,6 +248,12 @@ export async function parseCSV(uri: string, bankId: string): Promise<Transaction
     headers.forEach((h, i) => { if (h) o[h] = (vals[i] || '').replace(/"/g, '').trim(); });
     return o;
   });
+
+  // C6 Bank: detecta fatura pelo cabeçalho específico
+  if (bankId === 'c6' || headers.some(h => /Final do Cart[aã]o|Parcela/i.test(h))) {
+    const c6Txs = parseC6Fatura(text);
+    if (c6Txs.length > 0) return c6Txs;
+  }
 
   const colMap = autoDetectColMap(headers);
   if (colMap.descricao && (colMap.valor || colMap.entrada || colMap.saida)) {
