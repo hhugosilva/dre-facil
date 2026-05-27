@@ -208,7 +208,15 @@ export async function parseXLSX(uri: string, bankId = 'auto'): Promise<Transacti
     .filter((r: any) => Object.keys(r).length > 1);
 
   // C6 Bank: usa parser dedicado que combina Título + Descrição
+  // Limpa cache antigo para evitar mapeamento incorreto salvo em sessões anteriores
   if (bankId === 'c6') {
+    try {
+      const raw = await AsyncStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const cache = JSON.parse(raw);
+        if (cache['c6']) { delete cache['c6']; await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache)); }
+      }
+    } catch {}
     const c6Txs = parseC6XLSX(allRows);
     if (c6Txs.length > 0) return c6Txs;
   }
