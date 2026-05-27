@@ -66,3 +66,7 @@ export const verify2FAApi = (userId: number, code: string) => api.post('/api/aut
 // Onboarding IA
 export const suggestCategoriesApi = (description: string) =>
   api.post('/api/ai/suggest-categories', { description });
+
+// Memory
+export const patchMemoryApi = (key: string, categoria: string) =>
+  api.patch('/api/memory', { key, categoria });

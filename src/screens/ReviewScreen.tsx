@@ -10,6 +10,7 @@ import { Category } from '../theme/index';
 import { useAuth } from '../context/AuthContext';
 import { fmtBRL } from '../utils/format';
 import { getMemory, saveMemory, memKey } from '../utils/storage';
+import { patchMemoryApi } from '../services/api';
 
 const BANK_COLORS: Record<string, string> = {
   'Nubank': '#820AD1', 'Mercado Pago': '#009ee3', 'Inter': '#FF7A00',
@@ -163,8 +164,10 @@ export default function ReviewScreen({ navigation, route }: any) {
 
   const changeCategoria = async (tx: AllTx, cat: string) => {
     setAllTx(allTx.map(t => t.id === tx.id ? { ...t, categoria: cat } : t));
+    const key = memKey(tx.descricao);
     const mem = await getMemory(user!.id);
-    await saveMemory(user!.id, { ...mem, [memKey(tx.descricao)]: cat });
+    await saveMemory(user!.id, { ...mem, [key]: cat });
+    patchMemoryApi(key, cat).catch(() => {}); // sincroniza backend sem bloquear UI
     setCatModal(null);
   };
 

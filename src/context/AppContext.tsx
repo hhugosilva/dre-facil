@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { DEFAULT_CATS, Category } from '../theme';
-import { memKey } from '../utils/storage';
+import { getMemory, saveMemory, memKey } from '../utils/storage';
 import { listDREApi, getConfigApi, saveConfigApi } from '../services/api';
+import { useAuth } from './AuthContext';
 
 export type AllTx = {
   id: number;
@@ -50,6 +51,7 @@ type AppCtx = {
 const AppContext = createContext<AppCtx>({} as AppCtx);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [hist, setHist] = useState<HistEntry[]>([]);
   const [cats, setCats] = useState<Category[]>(DEFAULT_CATS);
   const [rules, setRules] = useState<Rule[]>([]);
@@ -72,9 +74,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (cfg.fornecedores) setForns(cfg.fornecedores);
       setBusinessType(cfg.business_type || null);
+      // Sincroniza memória do backend para AsyncStorage local
+      if (user?.id && cfg.memory && Object.keys(cfg.memory).length > 0) {
+        const local = await getMemory(user.id);
+        await saveMemory(user.id, { ...cfg.memory, ...local });
+      }
     } catch {}
     setConfigLoaded(true);
-  }, []);
+  }, [user?.id]);
 
   const saveConfig = async (c: Category[], r: Rule[], f: Forn[]) => {
     setCats(c); setRules(r); setForns(f);
