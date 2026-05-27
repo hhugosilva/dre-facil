@@ -56,6 +56,7 @@ export default function ResultadoScreen({ navigation, route }: any) {
   const [saving, setSaving]               = useState(false);
   const [selectedMesKey, setSelectedMesKey] = useState<string>(mesKey);
   const [pickerOpen, setPickerOpen]       = useState(false);
+  const [drillCat, setDrillCat]           = useState<string | null>(null);
 
   const currentYear = new Date().getFullYear();
   const selYear  = parseInt(selectedMesKey.split('-')[0]);
@@ -139,6 +140,17 @@ export default function ResultadoScreen({ navigation, route }: any) {
     barFill:     { height: 5, borderRadius: 3 },
     saveBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.green, borderRadius: colors.r, padding: 16, marginTop: 4 },
     saveBtnText: { fontSize: 15, fontWeight: '700', color: '#0a1a0e' },
+    drillOverlay:{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    drillSheet:  { backgroundColor: colors.s1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40, maxHeight: '80%' },
+    drillHandle: { width: 36, height: 4, backgroundColor: colors.b3, borderRadius: 99, alignSelf: 'center', marginBottom: 14 },
+    drillHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+    drillDot:    { width: 12, height: 12, borderRadius: 6 },
+    drillTitle:  { fontSize: 16, fontWeight: '700', color: colors.t1, flex: 1 },
+    drillTotal:  { fontSize: 13, color: colors.t3, marginBottom: 14 },
+    drillItem:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: colors.b1 },
+    drillItemDesc:{ flex: 1, fontSize: 13, color: colors.t1, paddingRight: 8 },
+    drillItemDate:{ fontSize: 11, color: colors.t3, marginTop: 2 },
+    drillItemVal: { fontSize: 13, fontWeight: '600', color: colors.red },
   }), [colors]);
 
   const handleSave = async () => {
@@ -218,13 +230,14 @@ export default function ResultadoScreen({ navigation, route }: any) {
           {sortedCustos.map(([cat, val]) => {
             const catColor = getCatColor(cat);
             return (
-              <View key={cat} style={s.dreRow}>
+              <TouchableOpacity key={cat} style={s.dreRow} onPress={() => setDrillCat(cat)} activeOpacity={0.7}>
                 <View style={s.dreLabelRow}>
                   <View style={[s.catDot, { backgroundColor: catColor }]} />
-                  <Text style={s.dreLabel}>{cat} {'>'}</Text>
+                  <Text style={s.dreLabel}>{cat}</Text>
+                  <Ionicons name="chevron-forward" size={12} color={colors.t3} />
                 </View>
                 <Text style={[s.dreVal, { color: colors.red }]}>- {fmtBRL(val)}</Text>
-              </View>
+              </TouchableOpacity>
             );
           })}
 
@@ -297,6 +310,42 @@ export default function ResultadoScreen({ navigation, route }: any) {
           }
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Modal drill-down por categoria */}
+      <Modal visible={!!drillCat} transparent animationType="slide">
+        <TouchableOpacity style={s.drillOverlay} activeOpacity={1} onPress={() => setDrillCat(null)}>
+          <View style={s.drillSheet}>
+            <View style={s.drillHandle} />
+            {drillCat && (() => {
+              const catColor = getCatColor(drillCat);
+              const txs = included.filter(t => t.valor < 0 && t.categoria === drillCat)
+                .sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
+              const total = txs.reduce((s, t) => s + Math.abs(t.valor), 0);
+              return (
+                <>
+                  <View style={s.drillHeader}>
+                    <View style={[s.drillDot, { backgroundColor: catColor }]} />
+                    <Text style={s.drillTitle}>{drillCat}</Text>
+                    <Text style={[s.drillItemVal, { fontSize: 15 }]}>- {fmtBRL(total)}</Text>
+                  </View>
+                  <Text style={s.drillTotal}>{txs.length} lançamento{txs.length !== 1 ? 's' : ''}</Text>
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    {txs.map((t, i) => (
+                      <View key={i} style={s.drillItem}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.drillItemDesc} numberOfLines={2}>{t.descricao}</Text>
+                          <Text style={s.drillItemDate}>{t.data} · {t.source}</Text>
+                        </View>
+                        <Text style={s.drillItemVal}>- {fmtBRL(Math.abs(t.valor))}</Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </>
+              );
+            })()}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Modal seletor de período */}
       <Modal visible={pickerOpen} transparent animationType="slide">
