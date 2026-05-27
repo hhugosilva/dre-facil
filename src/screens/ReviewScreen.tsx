@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  Modal, TextInput, ScrollView,
+  Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp, AllTx } from '../context/AppContext';
+import { Category } from '../theme/index';
 import { useAuth } from '../context/AuthContext';
 import { fmtBRL } from '../utils/format';
 import { getMemory, saveMemory, memKey } from '../utils/storage';
@@ -27,13 +28,17 @@ export default function ReviewScreen({ navigation, route }: any) {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { mesKey } = route.params;
-  const { allTx, setAllTx, cats } = useApp();
+  const { allTx, setAllTx, cats, setCats, rules, forns, saveConfig } = useApp();
   const [filterSource, setFilterSource] = useState('todos');
   const [filterCats, setFilterCats] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
   const [search, setSearch] = useState('');
   const [catModal, setCatModal] = useState<AllTx | null>(null);
   const [filterModal, setFilterModal] = useState(false);
+  const [addCatOpen, setAddCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#4CAF50');
+  const newCatRef = useRef<TextInput>(null);
 
   const allCats = cats.map(c => c.name);
 
@@ -94,6 +99,15 @@ export default function ReviewScreen({ navigation, route }: any) {
     fGrid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
     applyBtn:       { backgroundColor: colors.green, borderRadius: colors.r, padding: 14, alignItems: 'center', marginTop: 16 },
     applyBtnText:   { fontSize: 14, fontWeight: '700', color: '#0a1a0e' },
+    addCatBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, marginTop: 4, borderRadius: colors.rs, borderWidth: 1, borderColor: colors.b2, borderStyle: 'dashed' },
+    addCatBtnText:  { fontSize: 14, color: colors.t3 },
+    addCatForm:     { marginTop: 8, backgroundColor: colors.s2, borderRadius: colors.rs, padding: 12, gap: 10 },
+    addCatInput:    { backgroundColor: colors.s1, borderRadius: colors.rs, padding: 10, fontSize: 14, color: colors.t1, borderWidth: 0.5, borderColor: colors.b2 },
+    colorRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    colorDot:       { width: 26, height: 26, borderRadius: 13 },
+    addCatActions:  { flexDirection: 'row', gap: 8, marginTop: 4 },
+    addCatCancel:   { flex: 1, padding: 10, borderRadius: colors.rs, borderWidth: 1, borderColor: colors.b2, alignItems: 'center' },
+    addCatSave:     { flex: 1, padding: 10, borderRadius: colors.rs, backgroundColor: colors.green, alignItems: 'center' },
   }), [colors]);
 
   const sources = useMemo(() =>
@@ -138,10 +152,10 @@ export default function ReviewScreen({ navigation, route }: any) {
 
   const neutralCats = useMemo(() => new Set(cats.filter(c => c.neutral).map(c => c.name)), [cats]);
   const receita = useMemo(() =>
-    allTx.filter(t => t.empresa && !t.isTransfer && t.valor > 0 && !neutralCats.has(t.categoria))
+    allTx.filter(t => t.valor > 0 && !neutralCats.has(t.categoria))
       .reduce((s, t) => s + t.valor, 0), [allTx, neutralCats]);
   const custos = useMemo(() =>
-    allTx.filter(t => t.empresa && !t.isTransfer && t.valor < 0 && !neutralCats.has(t.categoria))
+    allTx.filter(t => t.valor < 0 && !neutralCats.has(t.categoria))
       .reduce((s, t) => s + Math.abs(t.valor), 0), [allTx, neutralCats]);
 
   const toggleEmpresa = (tx: AllTx) =>
@@ -152,6 +166,21 @@ export default function ReviewScreen({ navigation, route }: any) {
     const mem = await getMemory(user!.id);
     await saveMemory(user!.id, { ...mem, [memKey(tx.descricao)]: cat });
     setCatModal(null);
+  };
+
+  const CAT_COLORS = ['#4CAF50','#2196F3','#FF5722','#9C27B0','#FF9800','#00BCD4','#E91E63','#8BC34A','#FFC107','#607D8B','#F44336','#3F51B5'];
+
+  const handleAddCat = async () => {
+    const name = newCatName.trim();
+    if (!name) return;
+    const newCat: Category = { name, color: newCatColor, cost: true };
+    const updated = [...cats, newCat];
+    setCats(updated);
+    await saveConfig(updated, rules, forns);
+    if (catModal) await changeCategoria(catModal, name);
+    setAddCatOpen(false);
+    setNewCatName('');
+    setNewCatColor('#4CAF50');
   };
 
   const clearFilters = () => {
@@ -165,14 +194,13 @@ export default function ReviewScreen({ navigation, route }: any) {
   const renderItem = ({ item }: { item: AllTx }) => {
     const catColor = getCatColor(item.categoria);
     const isOut = item.valor < 0;
-    const excluded = !item.empresa || item.isTransfer;
     const srcLabel = sourceLabel(item.source);
     const srcColor = bankColor(item.source, colors);
 
     return (
       <TouchableOpacity
-        style={[s.card, excluded && s.cardExcluded]}
-        onPress={() => !item.isTransfer && setCatModal(item)}
+        style={s.card}
+        onPress={() => setCatModal(item)}
         activeOpacity={0.75}
       >
         <View style={s.cardTop}>
@@ -185,14 +213,14 @@ export default function ReviewScreen({ navigation, route }: any) {
           </Text>
         </View>
 
-        <Text style={[s.cardDesc, excluded && { color: colors.t3 }]} numberOfLines={2}>
+        <Text style={s.cardDesc} numberOfLines={2}>
           {item.descricao}
         </Text>
 
         <View style={s.cardBottom}>
           <View style={[s.catChip, { borderLeftColor: catColor }]}>
-            <Text style={[s.catChipText, { color: excluded ? colors.t3 : colors.t2 }]}>
-              {item.isTransfer ? 'Transferência' : item.categoria}
+            <Text style={[s.catChipText, { color: colors.t2 }]}>
+              {item.categoria}
             </Text>
           </View>
         </View>
@@ -309,30 +337,66 @@ export default function ReviewScreen({ navigation, route }: any) {
 
       {/* Category modal */}
       <Modal visible={!!catModal} transparent animationType="slide">
-        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setCatModal(null)}>
-          <View style={s.modalSheet}>
-            <View style={s.modalHandle} />
-            <Text style={s.modalTitle} numberOfLines={2}>{catModal?.descricao}</Text>
-            <Text style={s.modalSub}>{catModal ? fmtBRL(Math.abs(catModal.valor)) : ''}</Text>
-            <ScrollView style={{ maxHeight: 360 }}>
-              {allCats.map(cat => {
-                const catColor = getCatColor(cat);
-                const active = catModal?.categoria === cat;
-                return (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[s.catOpt, { marginBottom: 6 }, active && { borderColor: `${catColor}80` }]}
-                    onPress={() => catModal && changeCategoria(catModal, cat)}
-                  >
-                    <View style={[s.catDot, { backgroundColor: catColor }]} />
-                    <Text style={[s.catOptText, active && { color: catColor }]}>{cat}</Text>
-                    {active && <Ionicons name="checkmark" size={16} color={catColor} style={{ marginLeft: 'auto' }} />}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => { setCatModal(null); setAddCatOpen(false); setNewCatName(''); }}>
+            <View style={s.modalSheet}>
+              <View style={s.modalHandle} />
+              <Text style={s.modalTitle} numberOfLines={2}>{catModal?.descricao}</Text>
+              <Text style={s.modalSub}>{catModal ? fmtBRL(Math.abs(catModal.valor)) : ''}</Text>
+              <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
+                {allCats.map(cat => {
+                  const catColor = getCatColor(cat);
+                  const active = catModal?.categoria === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[s.catOpt, { marginBottom: 6 }, active && { borderColor: `${catColor}80` }]}
+                      onPress={() => catModal && changeCategoria(catModal, cat)}
+                    >
+                      <View style={[s.catDot, { backgroundColor: catColor }]} />
+                      <Text style={[s.catOptText, active && { color: catColor }]}>{cat}</Text>
+                      {active && <Ionicons name="checkmark" size={16} color={catColor} style={{ marginLeft: 'auto' }} />}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Adicionar nova categoria */}
+                {!addCatOpen ? (
+                  <TouchableOpacity style={s.addCatBtn} onPress={() => { setAddCatOpen(true); setTimeout(() => newCatRef.current?.focus(), 100); }}>
+                    <Ionicons name="add-circle-outline" size={18} color={colors.t3} />
+                    <Text style={s.addCatBtnText}>Nova categoria</Text>
                   </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
+                ) : (
+                  <View style={s.addCatForm}>
+                    <TextInput
+                      ref={newCatRef}
+                      style={s.addCatInput}
+                      placeholder="Nome da categoria"
+                      placeholderTextColor={colors.t3}
+                      value={newCatName}
+                      onChangeText={setNewCatName}
+                    />
+                    <View style={s.colorRow}>
+                      {CAT_COLORS.map(c => (
+                        <TouchableOpacity key={c} onPress={() => setNewCatColor(c)}>
+                          <View style={[s.colorDot, { backgroundColor: c }, newCatColor === c && { borderWidth: 3, borderColor: colors.t1 }]} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <View style={s.addCatActions}>
+                      <TouchableOpacity style={s.addCatCancel} onPress={() => { setAddCatOpen(false); setNewCatName(''); }}>
+                        <Text style={{ color: colors.t2, fontSize: 13 }}>Cancelar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.addCatSave} onPress={handleAddCat}>
+                        <Text style={{ color: '#0a1a0e', fontSize: 13, fontWeight: '700' }}>Salvar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Filter modal */}

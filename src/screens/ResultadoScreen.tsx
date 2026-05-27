@@ -63,7 +63,7 @@ export default function ResultadoScreen({ navigation, route }: any) {
 
   const neutralCats = useMemo(() => new Set(cats.filter(c => c.neutral).map(c => c.name)), [cats]);
   const included = useMemo(() =>
-    allTx.filter(t => t.empresa && !t.isTransfer && !neutralCats.has(t.categoria)),
+    allTx.filter(t => !neutralCats.has(t.categoria)),
   [allTx, neutralCats]);
   const receita = useMemo(() => included.filter(t => t.valor > 0).reduce((s, t) => s + t.valor, 0), [included]);
 
