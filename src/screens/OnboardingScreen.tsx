@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, Alert, TextInput,
+  ActivityIndicator, Alert, TextInput, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -218,6 +218,7 @@ export default function OnboardingScreen() {
   const [showAdd,  setShowAdd]  = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [dreInfoVisible, setDreInfoVisible] = useState(false);
 
   const s = useMemo(() => StyleSheet.create({
     root:        { flex: 1, backgroundColor: colors.bg },
@@ -260,6 +261,20 @@ export default function OnboardingScreen() {
     addTrigger:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 14 },
     addTriggerTxt:{ fontSize: 13, color: colors.green, fontWeight: '600' },
     hint:        { fontSize: 12, color: colors.t3, marginTop: 14, textAlign: 'center', lineHeight: 18 },
+    // Link DRE info
+    dreLink:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 },
+    dreLinkText: { fontSize: 13, color: colors.green, fontWeight: '600', textDecorationLine: 'underline' },
+    // Modal DRE info
+    modalOverlay:{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
+    modalSheet:  { backgroundColor: colors.s1, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, paddingBottom: 44 },
+    modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.b2, alignSelf: 'center', marginBottom: 20 },
+    modalTitle:  { fontSize: 22, fontWeight: '900', color: colors.t1, marginBottom: 4 },
+    modalSub:    { fontSize: 13, color: colors.t3, marginBottom: 20 },
+    benefitRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+    benefitIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center' },
+    benefitText: { flex: 1, fontSize: 14, color: colors.t2, lineHeight: 21 },
+    benefitBold: { color: colors.t1, fontWeight: '700' },
+    divider:     { height: 0.5, backgroundColor: colors.b1, marginVertical: 18 },
     // Success
     successWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
     successIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: `${colors.green}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
@@ -363,6 +378,11 @@ export default function OnboardingScreen() {
           <>
             <Text style={s.title}>Qual é o seu negócio?</Text>
             <Text style={s.sub}>Vamos configurar as categorias certas para a IA classificar suas transações corretamente desde o início.</Text>
+
+            <TouchableOpacity style={s.dreLink} onPress={() => setDreInfoVisible(true)} activeOpacity={0.7}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.green} />
+              <Text style={s.dreLinkText}>Você sabe o que é uma DRE?</Text>
+            </TouchableOpacity>
 
             <View style={s.grid}>
               {BIZ_ORDER.map(key => {
@@ -495,6 +515,58 @@ export default function OnboardingScreen() {
         )}
 
       </ScrollView>
+
+      {/* ── Modal: O que é uma DRE? ── */}
+      <Modal visible={dreInfoVisible} transparent animationType="slide" onRequestClose={() => setDreInfoVisible(false)}>
+        <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setDreInfoVisible(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={s.modalSheet}>
+              <View style={s.modalHandle} />
+              <Text style={s.modalTitle}>O que é uma DRE?</Text>
+              <Text style={s.modalSub}>Demonstração do Resultado do Exercício</Text>
+
+              <View style={s.benefitRow}>
+                <View style={s.benefitIcon}><Text style={{ fontSize: 18 }}>📊</Text></View>
+                <Text style={s.benefitText}>
+                  <Text style={s.benefitBold}>Radiografia financeira do mês. </Text>
+                  A DRE mostra quanto seu negócio faturou, quanto gastou e qual foi o lucro real — tudo em um só lugar.
+                </Text>
+              </View>
+
+              <View style={s.benefitRow}>
+                <View style={s.benefitIcon}><Text style={{ fontSize: 18 }}>🎯</Text></View>
+                <Text style={s.benefitText}>
+                  <Text style={s.benefitBold}>Sabe onde está perdendo dinheiro. </Text>
+                  Veja quais categorias consomem mais e tome decisões com base em números, não em achismo.
+                </Text>
+              </View>
+
+              <View style={s.benefitRow}>
+                <View style={s.benefitIcon}><Text style={{ fontSize: 18 }}>📈</Text></View>
+                <Text style={s.benefitText}>
+                  <Text style={s.benefitBold}>Acompanha a evolução do negócio. </Text>
+                  Compare meses, identifique tendências e planeje com antecedência.
+                </Text>
+              </View>
+
+              <View style={s.benefitRow}>
+                <View style={s.benefitIcon}><Text style={{ fontSize: 18 }}>⚡</Text></View>
+                <Text style={s.benefitText}>
+                  <Text style={s.benefitBold}>Aqui é automático. </Text>
+                  Importe o extrato do banco e a IA classifica tudo — sua DRE fica pronta em segundos.
+                </Text>
+              </View>
+
+              <View style={s.divider} />
+
+              <TouchableOpacity style={s.btn} onPress={() => setDreInfoVisible(false)}>
+                <Text style={s.btnText}>Entendi, vamos configurar!</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }

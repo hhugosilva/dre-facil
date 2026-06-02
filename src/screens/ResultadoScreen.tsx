@@ -313,7 +313,9 @@ export default function ResultadoScreen({ navigation, route }: any) {
 
       {/* Modal drill-down por categoria */}
       <Modal visible={!!drillCat} transparent animationType="slide">
-        <TouchableOpacity style={s.drillOverlay} activeOpacity={1} onPress={() => setDrillCat(null)}>
+        <View style={s.drillOverlay}>
+          {/* Backdrop separado — não envolve o sheet */}
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setDrillCat(null)} />
           <View style={s.drillSheet}>
             <View style={s.drillHandle} />
             {drillCat && (() => {
@@ -344,7 +346,7 @@ export default function ResultadoScreen({ navigation, route }: any) {
               );
             })()}
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Modal seletor de período */}

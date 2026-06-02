@@ -179,11 +179,60 @@ function parseC6Fatura(text: string): Transaction[] {
   }).filter(Boolean) as Transaction[];
 }
 
+// ─── Itaú Bank: extrato conta corrente XLSX ───────────────────────────────────
+const ITAU_SKIP = /saldo total dispon[ií]vel|saldo anterior|saldo do dia/i;
+
+function parseItauXLSX(allRows: any[][]): Transaction[] {
+  const hr = allRows.findIndex(r =>
+    r.some(c => /^Data$/i.test(String(c || '').trim())) &&
+    r.some(c => /Lan[çc]amento/i.test(String(c || '').trim()))
+  );
+  if (hr < 0) return [];
+  const hdrs = allRows[hr].map((h: any) => String(h || '').trim());
+  const iData  = hdrs.findIndex(h => /^Data$/i.test(h));
+  const iLanc  = hdrs.findIndex(h => /Lan[çc]amento/i.test(h));
+  const iRazao = hdrs.findIndex(h => /Raz[aã]o Social/i.test(h));
+  // aceita "Valor (R$)" ou qualquer variação como "Valor(R$)"
+  const iValor = hdrs.findIndex(h => /Valor.*R\$/i.test(h) && !/Saldo/i.test(h));
+  if (iLanc < 0 || iValor < 0) return [];
+  return allRows.slice(hr + 1)
+    .filter(r => r.some(c => String(c || '').trim()))
+    .map(r => {
+      const lancamento = String(r[iLanc] || '').trim();
+      // pula linhas de saldo do dia explicitamente
+      if (ITAU_SKIP.test(lancamento)) return null;
+      const razao     = iRazao >= 0 ? String(r[iRazao] || '').trim() : '';
+      const descricao = razao ? `${lancamento} - ${razao}` : lancamento;
+      if (!descricao) return null;
+      const rawValor = r[iValor];
+      if (rawValor === '' || rawValor === undefined || rawValor === null) return null;
+      const valor = parseVal(rawValor);
+      if (valor === 0) return null;
+      return { data: iData >= 0 ? String(r[iData] || '').trim() : '', descricao, valor };
+    })
+    .filter(Boolean) as Transaction[];
+}
+
 // ─── Parse XLSX ──────────────────────────────────────────────────────────────
 export async function parseXLSX(uri: string, bankId = 'auto'): Promise<Transaction[]> {
   const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
   const wb = xlsxRead(b64, { type: 'base64', raw: false });
   const ws = wb.Sheets[wb.SheetNames[0]];
+
+  // Alguns bancos (ex: Itaú) declaram <dimension> menor que os dados reais.
+  // Expande o !ref varrendo todos os cell addresses presentes no worksheet.
+  if (ws['!ref']) {
+    const range = xlsxUtils.decode_range(ws['!ref']);
+    Object.keys(ws).filter(k => !k.startsWith('!')).forEach(addr => {
+      try {
+        const cell = xlsxUtils.decode_cell(addr);
+        if (cell.r > range.e.r) range.e.r = cell.r;
+        if (cell.c > range.e.c) range.e.c = cell.c;
+      } catch {}
+    });
+    ws['!ref'] = xlsxUtils.encode_range(range);
+  }
+
   const allRows: any[][] = xlsxUtils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 
   // Find header row
@@ -219,6 +268,19 @@ export async function parseXLSX(uri: string, bankId = 'auto'): Promise<Transacti
     } catch {}
     const c6Txs = parseC6XLSX(allRows);
     if (c6Txs.length > 0) return c6Txs;
+  }
+
+  // Itaú Bank: usa parser dedicado que combina Lançamento + Razão Social
+  if (bankId === 'itau') {
+    try {
+      const raw = await AsyncStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const cache = JSON.parse(raw);
+        if (cache['itau']) { delete cache['itau']; await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache)); }
+      }
+    } catch {}
+    const itauTxs = parseItauXLSX(allRows);
+    if (itauTxs.length > 0) return itauTxs;
   }
 
   const colMap = autoDetectColMap(hdrs);
@@ -320,7 +382,7 @@ function detectBankFromText(text: string): string {
   if (t.includes('nubank') || (t.includes('"title"') && t.includes('"amount"'))) return 'nubank';
   if (t.includes('mercado pago') || t.includes('mercadopago') || t.includes('mp_')) return 'mercadopago';
   if ((t.includes('inter') && (t.includes('historico') || t.includes('histórico')))) return 'inter';
-  if (t.includes('itau') || t.includes('itaú') || t.includes('lançamento') && t.includes('ag.')) return 'itau';
+  if (t.includes('itau') || t.includes('itaú') || (t.includes('lançamento') && t.includes('razão social')) || (t.includes('lancamento') && t.includes('razao social')) || (t.includes('lançamento') && t.includes('ag.'))) return 'itau';
   if (t.includes('bradesco')) return 'bradesco';
   if (t.includes('santander')) return 'santander';
   if (t.includes('caixa economica') || t.includes('caixa econômica') || t.includes('cef') || (t.includes('caixa') && (t.includes('extrato') || t.includes('operacao')))) return 'caixa';
